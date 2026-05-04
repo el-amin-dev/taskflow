@@ -1,0 +1,37 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# node / svelte
+node_modules/
+.svelte-kit/
+build/
+dist/
+
+# editor / os
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# docker
+*.pid
+
+# logs
+*.log
+logs/
+
+# cli config
+.taskflow/
