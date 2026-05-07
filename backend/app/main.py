@@ -10,6 +10,8 @@ from app.core.logging import setup_logging
 from app.api.meta import router as router_meta
 from app.api.v1 import router as router_v1
 
+from app.infra.db import init_engine, dispose_engine
+
 
 
 log = logging.getLogger("taskflow.main")
@@ -21,11 +23,11 @@ setup_logging(_settings.environment)
 @asynccontextmanager
 async def lifespan(app: FastAPI)-> AsyncIterator[None]:
     settings = get_settings()
-
+    init_engine()
     log.info("startup",extra={"env":settings.environment.value,"app":settings.app_name})
     yield
     log.info('shutdown')
-
+    await dispose_engine()
 
 
 def create_app() -> FastAPI:

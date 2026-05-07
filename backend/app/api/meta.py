@@ -1,5 +1,5 @@
 import time 
-
+from app.infra.db import db_ping
 from fastapi import APIRouter 
 router = APIRouter(tags=["meta"])
 
@@ -15,7 +15,7 @@ async def ready() -> dict [str,object]:
     checks : dict [str, object] = {}
     
     # check postgres and redis will be here 
-
+    checks["postgres"] = "ok" if await db_ping() else "fail"
     is_ready = all (v == "ok" for v in checks.values())
     return {
         "status" : "ready" if is_ready else "not ready",
