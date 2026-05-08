@@ -46,14 +46,11 @@ async def dispose_engine() -> None :
     log.info("db engine disposed ")
 
 
-async def get_db() -> AsyncIterator[AsyncEngine]:
+async def get_db() -> AsyncIterator[AsyncSession]:
     if _session_factory is None:
         raise RuntimeError("db engnine is not initialized  - call init_engine() first ")
     async with _session_factory() as session:
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
+        yield session
 
 async def db_ping() -> bool:
     if _engine is None:

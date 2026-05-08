@@ -21,3 +21,4 @@ argon2-cffi==23.1.0
 
 # rate limiting
 slowapi==0.1.9
+email-validator
