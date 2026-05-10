@@ -34,4 +34,4 @@ dist/
 logs/
 
 # cli config
-.taskflow/
+docker-compose.override.yaml
