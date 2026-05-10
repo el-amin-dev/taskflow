@@ -11,6 +11,7 @@ from app.infra.db import get_db
 from app.infra.security import create_access_token
 from app.services.user_service import EmailNotAvailable , InvalidCredentials
 from app.services import user_service
+from app.api.dependencies import get_current_user
 
 
 
@@ -124,3 +125,13 @@ async def login(
         expires_in=settings.jwt_access_ttl_minutes * 60
     )
 
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK
+)
+async def me (
+    user:User = Depends(get_current_user),
+
+) -> UserResponse:
+    return UserResponse.from_domain(user)
