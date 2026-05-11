@@ -3,10 +3,9 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-
 from app.domain.workspace import Workspace , MemberShip ,WorkspaceRole
 from app.infra.models import MemberShipModel , WorkspaceModel
-from app.infra.repositories import workspace_repo,membership_repo
+from app.infra.repositories import workspace_repo,membership_repo, user_repo
 
 class WorkspaceNotFound(Exception):
     pass
@@ -16,6 +15,18 @@ class NotAMember(Exception):
 
 class InsuffcientWorkspaceRole(Exception):
     pass
+
+class UserNotFound(Exception):
+    pass
+
+class AlreadyMember(Exception):
+    pass
+
+class CannotRemoveOwner(Exception):
+    pass
+
+
+
 
 def _to_workspace_domain(
         model:WorkspaceModel
@@ -84,3 +95,59 @@ async def get_workspace_for_member(
     if m_model is None:
         raise NotAMember()
     return _to_workspace_domain(ws_model),_to_membership_domain(m_model)
+
+
+async def invite_member(
+        session:AsyncSession,
+        *,
+        workspace_id : UUID,
+        invitee_email : str,
+        role : WorkspaceRole,
+)-> MemberShip:
+    
+    invitee = await user_repo.find_by_email(
+        session=session,
+        email=invitee_email 
+    )
+    if invitee is None:
+        raise UserNotFound()
+    
+    exsisting = await membership_repo.find(
+        session=session ,
+        user_id=invitee.id,
+        workspace_id=workspace_id,
+    )
+    if exsisting is not None:
+        raise AlreadyMember()
+    
+    m_model = await membership_repo.create(
+        session=session,
+        user_id=invitee.id,
+        workspace_id=workspace_id,
+        role=role.value
+    )
+
+    await session.commit()
+
+    return _to_membership_domain(m_model)
+
+
+async def remove_member(
+        session:AsyncSession,
+        *,
+        target_user_id :UUID,
+        workspace_id: UUID
+)-> None:
+    workspace = await workspace_repo.find_by_id(session=session,workspace_id=workspace_id)
+    if workspace is None:
+        raise NotAMember()
+    
+    if workspace.owner_id == target_user_id:
+        raise CannotRemoveOwner()
+    
+    deleted = await membership_repo.delete(session, user_id=target_user_id, workspace_id=workspace_id)
+
+    if not deleted:
+        raise NotAMember()
+    
+    await session.commit()
