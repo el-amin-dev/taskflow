@@ -7,6 +7,14 @@ from app.infra.security import InvalidToken , decode_token
 from app.infra.repositories import  user_repo
 
 
+from typing import Callable,Awaitable
+
+from uuid import UUID
+from app.domain.workspace import MemberShip , Workspace , WorkspaceRole
+from app.services import  workspace_service
+from app.services.workspace_service import NotAMember
+
+
 def _unauthorized() -> HTTPException :
     return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -48,3 +56,44 @@ async def get_current_user(
         role=Role(model.role),
         created_at=model.created_at
     )
+
+
+def _not_found() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={"detail":"workspace not found","code":"workspace_not_found"},
+    )
+
+def require_workspace_role (
+        allowed_roles:set[WorkspaceRole|str],
+
+
+) -> Callable[...,Awaitable[tuple[Workspace,MemberShip]]]:
+
+    normalized :set[WorkspaceRole] = {
+        WorkspaceRole(r) if isinstance(r,str) else r 
+        for r in allowed_roles
+    }    
+
+    async def _checker(
+             workspace_id:UUID,
+             user:User = Depends(get_current_user),
+             session : AsyncSession = Depends(get_db),
+             )-> tuple[Workspace,MemberShip]:
+        
+        try:
+            workspace,membership = await workspace_service.get_workspace_for_member(
+                session,workspace_id=workspace_id , user_id= user.id
+            )
+        except NotAMember:
+            raise _not_found()
+        
+
+        if membership.role not in normalized:
+            raise _not_found()
+        
+        return workspace , membership
+    
+    return _checker
+     
+
