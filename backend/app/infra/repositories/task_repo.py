@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from uuid import UUID
+from sqlalchemy import select, update as sa_update
 
 from app.infra.models import TaskModel
 
@@ -45,3 +46,31 @@ async def list_for_workspace (
     result = await session.execute(stmt)
     return list(result.scalars().all())
     
+async def find_by_id(
+        session:AsyncSession,
+        task_id:UUID
+)-> TaskModel:
+    return await session.get(TaskModel,task_id)
+
+async def update(
+        session:AsyncSession,
+        task_id:UUID,
+        *,
+        fields:dict,
+
+
+) -> TaskModel|None:
+    if not fields:
+        return await find_by_id(session,task_id)
+    
+    stmt = (
+        sa_update(TaskModel)
+        .where(TaskModel.id == task_id)
+        .values(**fields)
+        .returning(TaskModel)
+    )
+
+    result = await session.execute(stmt)
+    row = result . scalar_one_or_none()
+    await session.flush()
+    return row
