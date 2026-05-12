@@ -9,6 +9,7 @@ from app.domain.task import Task, TaskStatus
 from app.infra.models import TaskModel
 from app.infra.repositories import task_repo
 
+from app.domain.workspace import WorkspaceRole
 
 def _to_task_domain(model: TaskModel) -> Task:
     return Task(
@@ -66,3 +67,61 @@ async def list_tasks(
         session, workspace_id, status=status_str,
     )
     return [_to_task_domain(m) for m in models]
+
+
+
+class TaskNotFound(Exception):
+    pass
+
+
+
+def _assert_task_authz(
+        task: TaskModel,
+        caller_id:UUID,
+        caller_role:WorkspaceRole
+)-> None:
+    if caller_role == WorkspaceRole.ADMIN:
+        return
+    if task.created_by != caller_id:
+        raise TaskNotFound()
+    
+
+async def get_task(
+        session:AsyncSession,
+        *,
+        task_id:UUID,
+        workspace_id:UUID,
+        caller_id:UUID,
+        caller_role:WorkspaceRole
+)-> Task:
+    model = await task_repo.find_by_id(session,task_id)
+    if model is None:
+        raise TaskNotFound()
+    if model.workspace_id != workspace_id:
+        raise TaskNotFound()
+    
+    return _to_task_domain(model)
+
+async def update_task(
+        session:AsyncSession,
+        *,
+        task_id:UUID,
+        workspace_id:UUID,
+        caller_id:UUID,
+        caller_role:WorkspaceRole,
+        fields:dict,
+)->Task:
+    model = await task_repo.find_by_id(session,task_id)
+    if model is None:
+        raise TaskNotFound()
+    if model.workspace_id != workspace_id:
+        raise TaskNotFound()
+    
+    _assert_task_authz(model,caller_id=caller_id,caller_role=caller_role)
+
+    if "status" in fields and isinstance(fields["status"],TaskStatus):
+        fields["status"] = fields["status"].value
+    
+    updated = await task_repo.update(session,task_id,fields=fields)
+    await session.commit()
+    return _to_task_domain(updated)
