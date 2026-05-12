@@ -250,3 +250,174 @@ async def test_empty_title_returns_422(client: AsyncClient) -> None:
         headers=_auth(ctx["admin"]["token"]),
     )
     assert response.status_code == 422
+
+
+async def _setup_workspace_with_member_task(client: AsyncClient) -> dict:
+    """extends the base setup: also seeds a task created by the member.
+    layered-authz scenarios need a task owned by someone other than admin."""
+    ctx = await _setup_workspace_with_roles(client)
+
+    # member creates a task in the workspace
+    task_resp = await client.post(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks",
+        json={"title": "member task"},
+        headers=_auth(ctx["member"]["token"]),
+    )
+    assert task_resp.status_code == 201
+    ctx["member_task_id"] = task_resp.json()["id"]
+
+    # ALSO add a second member (we'll call them 'other') for "member edits another's task" scenarios
+    other = await _register_and_login(client, _unique_email("tk-other"))
+    invite = await client.post(
+        f"/v1/workspaces/{ctx['workspace_id']}/members",
+        json={"email": other["email"], "role": "member"},
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    assert invite.status_code == 201
+    ctx["other"] = other
+
+    return ctx
+
+
+async def test_admin_updates_any_task(client: AsyncClient) -> None:
+    ctx = await _setup_workspace_with_member_task(client)
+
+    response = await client.patch(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{ctx['member_task_id']}",
+        json={"title": "admin edited", "status": "in_progress"},
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["title"] == "admin edited"
+    assert body["status"] == "in_progress"
+
+
+async def test_member_updates_own_task(client: AsyncClient) -> None:
+    ctx = await _setup_workspace_with_member_task(client)
+
+    response = await client.patch(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{ctx['member_task_id']}",
+        json={"status": "done"},
+        headers=_auth(ctx["member"]["token"]),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "done"
+
+
+async def test_member_cannot_update_others_task(client: AsyncClient) -> None:
+    """row-level authz: member edits only own tasks. another member's task → 404 task_not_found."""
+    ctx = await _setup_workspace_with_member_task(client)
+
+    response = await client.patch(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{ctx['member_task_id']}",
+        json={"title": "sabotage"},
+        headers=_auth(ctx["other"]["token"]),
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "task_not_found"
+
+
+async def test_viewer_cannot_update_returns_workspace_not_found(
+    client: AsyncClient,
+) -> None:
+    """viewer blocked at route layer — different code than task_not_found."""
+    ctx = await _setup_workspace_with_member_task(client)
+
+    response = await client.patch(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{ctx['member_task_id']}",
+        json={"title": "viewer cant"},
+        headers=_auth(ctx["viewer"]["token"]),
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "workspace_not_found"
+
+
+async def test_outsider_cannot_update_returns_workspace_not_found(
+    client: AsyncClient,
+) -> None:
+    ctx = await _setup_workspace_with_member_task(client)
+
+    response = await client.patch(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{ctx['member_task_id']}",
+        json={"title": "outsider cant"},
+        headers=_auth(ctx["outsider"]["token"]),
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "workspace_not_found"
+
+
+async def test_ghost_task_uuid_returns_task_not_found(client: AsyncClient) -> None:
+    ctx = await _setup_workspace_with_member_task(client)
+
+    response = await client.patch(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{uuid4()}",
+        json={"title": "ghost"},
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "task_not_found"
+
+
+async def test_update_404_byte_identical_member_other_vs_ghost(
+    client: AsyncClient,
+) -> None:
+    """OWASP A01 — member-tries-others-task and admin-tries-ghost-task
+    return byte-identical 404 responses. No enumeration."""
+    ctx = await _setup_workspace_with_member_task(client)
+    payload = {"title": "irrelevant"}
+
+    # 'other' member tries to edit member's task — task_not_found via row-level authz
+    other_resp = await client.patch(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{ctx['member_task_id']}",
+        json=payload,
+        headers=_auth(ctx["other"]["token"]),
+    )
+
+    # admin tries a UUID that doesn't exist — task_not_found via NOT FOUND
+    ghost_resp = await client.patch(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{uuid4()}",
+        json=payload,
+        headers=_auth(ctx["admin"]["token"]),
+    )
+
+    assert other_resp.status_code == 404
+    assert ghost_resp.status_code == 404
+    # byte-identical body — attacker can't distinguish 'task exists, you're not owner'
+    # from 'task doesn't exist'
+    assert other_resp.json() == ghost_resp.json()
+
+
+async def test_empty_body_returns_unchanged_task(client: AsyncClient) -> None:
+    """PATCH with {} is a valid degenerate partial update — returns current state."""
+    ctx = await _setup_workspace_with_member_task(client)
+
+    response = await client.patch(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{ctx['member_task_id']}",
+        json={},
+        headers=_auth(ctx["member"]["token"]),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["title"] == "member task"  # unchanged
+
+
+async def test_update_invalid_status_returns_422(client: AsyncClient) -> None:
+    ctx = await _setup_workspace_with_member_task(client)
+
+    response = await client.patch(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{ctx['member_task_id']}",
+        json={"status": "garbage"},
+        headers=_auth(ctx["member"]["token"]),
+    )
+    assert response.status_code == 422
+
+
+async def test_update_empty_title_returns_422(client: AsyncClient) -> None:
+    ctx = await _setup_workspace_with_member_task(client)
+
+    response = await client.patch(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{ctx['member_task_id']}",
+        json={"title": ""},
+        headers=_auth(ctx["member"]["token"]),
+    )
+    assert response.status_code == 422
