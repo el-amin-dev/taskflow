@@ -77,7 +77,7 @@ async def test_admin_creates_task_201(client: AsyncClient) -> None:
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["title"] == "write design doc"
-    assert body["status"] == "todo"  # default
+    assert body["status"] == "todo"  
     assert body["created_by"] == ctx["admin"]["id"]
     assert body["workspace_id"] == ctx["workspace_id"]
 
@@ -150,7 +150,6 @@ async def test_creation_404_byte_identical_across_blocked_callers(
     assert viewer_resp.status_code == 404
     assert outsider_resp.status_code == 404
     assert ghost_resp.status_code == 404
-    # byte-identical: an attacker cannot distinguish these three states
     assert viewer_resp.json() == outsider_resp.json() == ghost_resp.json()
 
 
@@ -159,7 +158,6 @@ async def test_all_members_can_list_including_viewer(
 ) -> None:
     ctx = await _setup_workspace_with_roles(client)
 
-    # admin creates two tasks
     for title, status_ in [("task one", "todo"), ("task two", "in_progress")]:
         r = await client.post(
             f"/v1/workspaces/{ctx['workspace_id']}/tasks",
@@ -168,7 +166,6 @@ async def test_all_members_can_list_including_viewer(
         )
         assert r.status_code == 201
 
-    # all three internal roles can list
     for role_label in ["admin", "member", "viewer"]:
         listing = await client.get(
             f"/v1/workspaces/{ctx['workspace_id']}/tasks",
@@ -194,7 +191,6 @@ async def test_list_with_status_filter_returns_subset(
 ) -> None:
     ctx = await _setup_workspace_with_roles(client)
 
-    # 2 todos, 1 in_progress
     for title in ["todo-a", "todo-b"]:
         await client.post(
             f"/v1/workspaces/{ctx['workspace_id']}/tasks",
@@ -253,11 +249,8 @@ async def test_empty_title_returns_422(client: AsyncClient) -> None:
 
 
 async def _setup_workspace_with_member_task(client: AsyncClient) -> dict:
-    """extends the base setup: also seeds a task created by the member.
-    layered-authz scenarios need a task owned by someone other than admin."""
     ctx = await _setup_workspace_with_roles(client)
 
-    # member creates a task in the workspace
     task_resp = await client.post(
         f"/v1/workspaces/{ctx['workspace_id']}/tasks",
         json={"title": "member task"},
@@ -266,7 +259,6 @@ async def _setup_workspace_with_member_task(client: AsyncClient) -> dict:
     assert task_resp.status_code == 201
     ctx["member_task_id"] = task_resp.json()["id"]
 
-    # ALSO add a second member (we'll call them 'other') for "member edits another's task" scenarios
     other = await _register_and_login(client, _unique_email("tk-other"))
     invite = await client.post(
         f"/v1/workspaces/{ctx['workspace_id']}/members",
@@ -306,7 +298,6 @@ async def test_member_updates_own_task(client: AsyncClient) -> None:
 
 
 async def test_member_cannot_update_others_task(client: AsyncClient) -> None:
-    """row-level authz: member edits only own tasks. another member's task → 404 task_not_found."""
     ctx = await _setup_workspace_with_member_task(client)
 
     response = await client.patch(
@@ -321,7 +312,6 @@ async def test_member_cannot_update_others_task(client: AsyncClient) -> None:
 async def test_viewer_cannot_update_returns_workspace_not_found(
     client: AsyncClient,
 ) -> None:
-    """viewer blocked at route layer — different code than task_not_found."""
     ctx = await _setup_workspace_with_member_task(client)
 
     response = await client.patch(
@@ -362,19 +352,15 @@ async def test_ghost_task_uuid_returns_task_not_found(client: AsyncClient) -> No
 async def test_update_404_byte_identical_member_other_vs_ghost(
     client: AsyncClient,
 ) -> None:
-    """OWASP A01 — member-tries-others-task and admin-tries-ghost-task
-    return byte-identical 404 responses. No enumeration."""
     ctx = await _setup_workspace_with_member_task(client)
     payload = {"title": "irrelevant"}
 
-    # 'other' member tries to edit member's task — task_not_found via row-level authz
     other_resp = await client.patch(
         f"/v1/workspaces/{ctx['workspace_id']}/tasks/{ctx['member_task_id']}",
         json=payload,
         headers=_auth(ctx["other"]["token"]),
     )
 
-    # admin tries a UUID that doesn't exist — task_not_found via NOT FOUND
     ghost_resp = await client.patch(
         f"/v1/workspaces/{ctx['workspace_id']}/tasks/{uuid4()}",
         json=payload,
@@ -383,13 +369,10 @@ async def test_update_404_byte_identical_member_other_vs_ghost(
 
     assert other_resp.status_code == 404
     assert ghost_resp.status_code == 404
-    # byte-identical body — attacker can't distinguish 'task exists, you're not owner'
-    # from 'task doesn't exist'
     assert other_resp.json() == ghost_resp.json()
 
 
 async def test_empty_body_returns_unchanged_task(client: AsyncClient) -> None:
-    """PATCH with {} is a valid degenerate partial update — returns current state."""
     ctx = await _setup_workspace_with_member_task(client)
 
     response = await client.patch(
@@ -398,7 +381,7 @@ async def test_empty_body_returns_unchanged_task(client: AsyncClient) -> None:
         headers=_auth(ctx["member"]["token"]),
     )
     assert response.status_code == 200, response.text
-    assert response.json()["title"] == "member task"  # unchanged
+    assert response.json()["title"] == "member task"  
 
 
 async def test_update_invalid_status_returns_422(client: AsyncClient) -> None:
@@ -421,3 +404,164 @@ async def test_update_empty_title_returns_422(client: AsyncClient) -> None:
         headers=_auth(ctx["member"]["token"]),
     )
     assert response.status_code == 422
+
+async def _seed_admin_task(client: AsyncClient, ctx: dict) -> str:
+    resp = await client.post(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks",
+        json={"title": "task to delete"},
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+async def test_admin_deletes_task_204(client: AsyncClient) -> None:
+    ctx = await _setup_workspace_with_roles(client)
+    task_id = await _seed_admin_task(client, ctx)
+
+    response = await client.delete(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{task_id}",
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    assert response.status_code == 204
+    assert response.content == b""  
+
+async def test_member_cannot_delete_returns_workspace_not_found(
+    client: AsyncClient,
+) -> None:
+    ctx = await _setup_workspace_with_roles(client)
+    task_id = await _seed_admin_task(client, ctx)
+
+    response = await client.delete(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{task_id}",
+        headers=_auth(ctx["member"]["token"]),
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "workspace_not_found"
+
+
+async def test_viewer_cannot_delete_returns_workspace_not_found(
+    client: AsyncClient,
+) -> None:
+    ctx = await _setup_workspace_with_roles(client)
+    task_id = await _seed_admin_task(client, ctx)
+
+    response = await client.delete(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{task_id}",
+        headers=_auth(ctx["viewer"]["token"]),
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "workspace_not_found"
+
+
+async def test_outsider_cannot_delete_returns_workspace_not_found(
+    client: AsyncClient,
+) -> None:
+    ctx = await _setup_workspace_with_roles(client)
+    task_id = await _seed_admin_task(client, ctx)
+
+    response = await client.delete(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{task_id}",
+        headers=_auth(ctx["outsider"]["token"]),
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "workspace_not_found"
+
+
+async def test_deleted_task_disappears_from_list(client: AsyncClient) -> None:
+    ctx = await _setup_workspace_with_roles(client)
+    task_id = await _seed_admin_task(client, ctx)
+
+    before = await client.get(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks",
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    assert any(t["id"] == task_id for t in before.json())
+
+    delete_resp = await client.delete(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{task_id}",
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    assert delete_resp.status_code == 204
+
+    after = await client.get(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks",
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    assert all(t["id"] != task_id for t in after.json())
+
+
+async def test_redelete_returns_task_not_found(client: AsyncClient) -> None:
+    ctx = await _setup_workspace_with_roles(client)
+    task_id = await _seed_admin_task(client, ctx)
+
+    first = await client.delete(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{task_id}",
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    assert first.status_code == 204
+
+    second = await client.delete(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{task_id}",
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    assert second.status_code == 404
+    assert second.json()["detail"]["code"] == "task_not_found"
+
+
+async def test_delete_ghost_uuid_returns_task_not_found(
+    client: AsyncClient,
+) -> None:
+    ctx = await _setup_workspace_with_roles(client)
+
+    response = await client.delete(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{uuid4()}",
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "task_not_found"
+
+
+async def test_patch_deleted_task_returns_task_not_found(
+    client: AsyncClient,
+) -> None:
+    ctx = await _setup_workspace_with_roles(client)
+    task_id = await _seed_admin_task(client, ctx)
+
+    await client.delete(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{task_id}",
+        headers=_auth(ctx["admin"]["token"]),
+    )
+
+    patch_resp = await client.patch(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{task_id}",
+        json={"title": "resurrect"},
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    assert patch_resp.status_code == 404
+    assert patch_resp.json()["detail"]["code"] == "task_not_found"
+
+
+async def test_delete_404_byte_identical_redelete_vs_ghost(
+    client: AsyncClient,
+) -> None:
+    ctx = await _setup_workspace_with_roles(client)
+    task_id = await _seed_admin_task(client, ctx)
+
+    await client.delete(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{task_id}",
+        headers=_auth(ctx["admin"]["token"]),
+    )
+
+    redelete_resp = await client.delete(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{task_id}",
+        headers=_auth(ctx["admin"]["token"]),
+    )
+    ghost_resp = await client.delete(
+        f"/v1/workspaces/{ctx['workspace_id']}/tasks/{uuid4()}",
+        headers=_auth(ctx["admin"]["token"]),
+    )
+
+    assert redelete_resp.status_code == 404
+    assert ghost_resp.status_code == 404
+    assert redelete_resp.json() == ghost_resp.json()
