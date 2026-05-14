@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from uuid import UUID
-from sqlalchemy import select, update as sa_update
+from sqlalchemy import select, update as sa_update , func
 
 from app.infra.models import TaskModel
 
@@ -38,7 +38,7 @@ async def list_for_workspace (
         *,
         status:str |None=None,
 ) -> list[TaskModel]:
-    stmt = select(TaskModel).where(TaskModel.workspace_id == workspace_id)
+    stmt = select(TaskModel).where(TaskModel.workspace_id == workspace_id , TaskModel.deleted_at.is_(None))
     if status is not None:
         stmt = stmt.where(TaskModel.status == status)
     stmt = stmt.order_by(TaskModel.created_at.desc())
@@ -49,8 +49,13 @@ async def list_for_workspace (
 async def find_by_id(
         session:AsyncSession,
         task_id:UUID
-)-> TaskModel:
-    return await session.get(TaskModel,task_id)
+)-> TaskModel | None:
+    stmt = select(TaskModel).where(
+        TaskModel.id == task_id,
+        TaskModel.deleted_at.is_(None)
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
 
 async def update(
         session:AsyncSession,
@@ -72,5 +77,22 @@ async def update(
 
     result = await session.execute(stmt)
     row = result . scalar_one_or_none()
+    await session.flush()
+    return row
+
+
+async def soft_delete (
+        session : AsyncSession,
+        task_id:UUID
+) -> TaskModel | None:
+    stmt = (
+        sa_update(TaskModel)
+        .where(TaskModel.id == task_id , TaskModel.deleted_at.is_(None))
+        .values(deleted_at=func.now())
+        .returning(TaskModel)
+    )
+
+    result = await session.execute(stmt)
+    row = result.scalar_one_or_none()
     await session.flush()
     return row
