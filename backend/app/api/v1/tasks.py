@@ -166,3 +166,29 @@ async def update_task(
             detail="task not found",
         )
     return TaskResponse.from_domain(task)
+
+
+@router.delete(
+    "/{workspace_id}/tasks/{task_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_task(
+    workspace_id: UUID,
+    task_id: UUID,
+    ctx: tuple[Workspace, MemberShip] = Depends(
+        require_workspace_role({"admin"})
+    ),
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    try:
+        await task_service.delete_task(
+            session,
+            task_id=task_id,
+            workspace_id=workspace_id,
+        )
+    except TaskNotFound:
+        raise _error(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="task_not_found",
+            detail="task not found",
+        )
