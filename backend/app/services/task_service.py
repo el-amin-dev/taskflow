@@ -125,3 +125,21 @@ async def update_task(
     updated = await task_repo.update(session,task_id,fields=fields)
     await session.commit()
     return _to_task_domain(updated)
+
+
+async def delete_task(
+        session: AsyncSession,
+        *,
+        task_id:UUID,
+        workspace_id:UUID
+) -> None:
+    model = await task_repo.find_by_id(
+        session = session ,task_id=task_id
+    )
+    if model is None:
+        raise TaskNotFound()
+    if model.workspace_id != workspace_id :
+        raise TaskNotFound()
+    
+    await task_repo.soft_delete(session=session,task_id=task_id)
+    await session.commit()
