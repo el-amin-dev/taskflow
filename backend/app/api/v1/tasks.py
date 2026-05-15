@@ -7,15 +7,17 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status , HTTPException
+from fastapi import APIRouter, Depends, status , HTTPException , Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import require_workspace_role
+from app.api.dependencies import require_workspace_role , _user_id_or_ip
 from app.domain.task import Task, TaskStatus
 from app.domain.workspace import MemberShip, Workspace
 from app.infra.db import get_db
 from app.services import task_service
+
+from app.infra.rate_limiter import limiter,SIXTY_PER_MINUTE
 
 from app.services.task_service import TaskNotFound
 
@@ -23,7 +25,7 @@ from app.services.task_service import TaskNotFound
 router = APIRouter(prefix="/workspaces", tags=["tasks"])
 
 
-# string literal type so Pydantic enforces it at the wire boundary
+
 StatusLiteral = Literal["todo", "in_progress", "done"]
 
 
@@ -85,7 +87,9 @@ def _error(*,status_code:int,code:str,detail:str):
     response_model=TaskResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def create_task(
+    request:Request,
     workspace_id: UUID,
     payload: TaskCreate,
     ctx: tuple[Workspace, MemberShip] = Depends(
@@ -112,7 +116,9 @@ async def create_task(
     response_model=list[TaskResponse],
     status_code=status.HTTP_200_OK,
 )
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def list_tasks(
+    request:Request,
     workspace_id: UUID,
     status: StatusLiteral | None = None,
     ctx: tuple[Workspace, MemberShip] = Depends(
@@ -135,7 +141,9 @@ async def list_tasks(
     status_code=status.HTTP_200_OK,
     response_model=TaskResponse
 )
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def update_task(
+    request:Request,
     workspace_id: UUID,
     task_id: UUID,
     payload: TaskUpdate,
@@ -172,7 +180,9 @@ async def update_task(
     "/{workspace_id}/tasks/{task_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def delete_task(
+    request:Request,
     workspace_id: UUID,
     task_id: UUID,
     ctx: tuple[Workspace, MemberShip] = Depends(

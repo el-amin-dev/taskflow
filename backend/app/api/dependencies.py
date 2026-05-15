@@ -1,6 +1,8 @@
 from fastapi import Depends , HTTPException , Request ,status 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from slowapi.util import get_remote_address
+
 from app.domain.user import Role , User
 from app.infra.db import get_db
 from app.infra.security import InvalidToken , decode_token
@@ -97,3 +99,13 @@ def require_workspace_role (
     return _checker
      
 
+def _user_id_or_ip(request:Request) -> str :
+    auth_header = request.headers.get("authorization","")
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header[7:]
+        try:
+            claims  = decode_token(token=token)
+            return f"user:{claims['sub']}"
+        except (InvalidToken,KeyError):
+            pass
+    return f"ip:{get_remote_address(request)}"

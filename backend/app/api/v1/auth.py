@@ -11,8 +11,11 @@ from app.infra.db import get_db
 from app.infra.security import create_access_token
 from app.services.user_service import EmailNotAvailable , InvalidCredentials
 from app.services import user_service
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user , _user_id_or_ip
 
+
+from fastapi import Request
+from app.infra.rate_limiter import limiter,SIXTY_PER_MINUTE
 
 
 router = APIRouter (prefix="/auth",tags=["auth"])
@@ -72,7 +75,9 @@ def _error(
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED
 )
+@limiter.limit("10/hour")
 async def register(
+    request:    Request,
     payload:    RegisterRequest,
     session:    AsyncSession = Depends(get_db),
 ) -> UserResponse:
@@ -98,7 +103,9 @@ async def register(
     response_model=TokenResponse,
     status_code=status.HTTP_200_OK
 )
+@limiter.limit("5/minute")
 async def login(
+    request:Request,
     payload:LoginRequest,
     session: AsyncSession = Depends(get_db),
 
@@ -130,7 +137,9 @@ async def login(
     response_model=UserResponse,
     status_code=status.HTTP_200_OK
 )
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def me (
+    request:Request,
     user:User = Depends(get_current_user),
 
 ) -> UserResponse:

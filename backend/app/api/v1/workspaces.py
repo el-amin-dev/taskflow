@@ -1,18 +1,19 @@
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter,Depends,status , HTTPException
+from fastapi import APIRouter,Depends,status , HTTPException , Request
 
 from pydantic import BaseModel, Field ,EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user ,require_workspace_role
+from app.api.dependencies import get_current_user ,require_workspace_role , _user_id_or_ip
 from app.domain.workspace import Workspace , MemberShip ,WorkspaceRole
 from app.domain.user import User
 from app.infra.db import get_db
 from app.services import workspace_service
 from app.services.workspace_service import UserNotFound,AlreadyMember,CannotRemoveOwner,NotAMember
 
+from app.infra.rate_limiter import limiter,SIXTY_PER_MINUTE
 
 
 from typing import Literal
@@ -69,7 +70,9 @@ def _error(*,status_code:int, code:str,detail:str) -> HTTPException:
     response_model=WorkspaceResponse,
     status_code=status.HTTP_201_CREATED
 )
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def create_workspace(
+    request:Request,
     payload: WorkspaceCreate,
     user: User = Depends(get_current_user),
     session:AsyncSession = Depends (get_db),
@@ -87,7 +90,9 @@ async def create_workspace(
     response_model=list[WorkspaceResponse],
     status_code=status.HTTP_200_OK
 )
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def list_workspaces(
+    request:Request,
     user : User = Depends(get_current_user),
     session : AsyncSession = Depends(get_db)
 ) -> list[WorkspaceResponse]:
@@ -100,7 +105,9 @@ async def list_workspaces(
     response_model=MemberResponse,
     status_code=status.HTTP_201_CREATED
 )
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def invite_member(
+    request: Request,
     workspace_id:UUID,
     payload : MemberInvite,
     session : AsyncSession = Depends(get_db),
@@ -137,7 +144,9 @@ async def invite_member(
     "/{workspace_id}/members/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def remove_member(
+    request:Request,
     workspace_id: UUID,
     user_id: UUID,
     ctx: tuple[Workspace, MemberShip] = Depends(require_workspace_role({"admin"})),
