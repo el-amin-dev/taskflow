@@ -14,6 +14,9 @@ from app.services import user_service
 from app.api.dependencies import get_current_user
 
 
+from fastapi import Request
+from app.infra.rate_limiter import limiter
+
 
 router = APIRouter (prefix="/auth",tags=["auth"])
 
@@ -72,7 +75,9 @@ def _error(
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED
 )
+@limiter.limit("10/hour")
 async def register(
+    request:    Request,
     payload:    RegisterRequest,
     session:    AsyncSession = Depends(get_db),
 ) -> UserResponse:
@@ -98,7 +103,9 @@ async def register(
     response_model=TokenResponse,
     status_code=status.HTTP_200_OK
 )
+@limiter.limit("5/minute")
 async def login(
+    request:Request,
     payload:LoginRequest,
     session: AsyncSession = Depends(get_db),
 
