@@ -12,6 +12,9 @@ from app.api.v1 import router as router_v1
 
 from app.infra.db import init_engine, dispose_engine
 
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from app.infra.rate_limiter import limiter,rate_limit_exceeded_handler
 
 
 log = logging.getLogger("taskflow.main")
@@ -33,6 +36,10 @@ async def lifespan(app: FastAPI)-> AsyncIterator[None]:
 def create_app() -> FastAPI:
     settings=get_settings()
     app = FastAPI(title=settings.app_name,lifespan=lifespan)
+
+    app.state.limiter=limiter
+    app.add_middleware(SlowAPIMiddleware)
+    app.add_exception_handler(RateLimitExceeded,rate_limit_exceeded_handler)
 
     app.include_router(router=router_meta)
     app.include_router(router=router_v1)
