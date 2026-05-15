@@ -17,7 +17,7 @@ from app.domain.workspace import MemberShip, Workspace
 from app.infra.db import get_db
 from app.services import task_service
 
-from app.infra.rate_limiter import limiter
+from app.infra.rate_limiter import limiter,SIXTY_PER_MINUTE
 
 from app.services.task_service import TaskNotFound
 
@@ -25,10 +25,9 @@ from app.services.task_service import TaskNotFound
 router = APIRouter(prefix="/workspaces", tags=["tasks"])
 
 
-# string literal type so Pydantic enforces it at the wire boundary
+
 StatusLiteral = Literal["todo", "in_progress", "done"]
 
-SIXTY_PER_MINUTE:str="60/minute"
 
 class TaskCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)

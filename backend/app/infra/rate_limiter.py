@@ -12,6 +12,9 @@ from slowapi.util import get_remote_address
 
 from app.core.config import get_settings
 
+
+SIXTY_PER_MINUTE = "60/minute"
+
 def _limiter_storage_url ()-> str :
     parsed = urlparse(get_settings().redis_url)
     return urlunparse(parsed._replace(path="/1"))

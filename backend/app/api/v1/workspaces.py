@@ -13,7 +13,7 @@ from app.infra.db import get_db
 from app.services import workspace_service
 from app.services.workspace_service import UserNotFound,AlreadyMember,CannotRemoveOwner,NotAMember
 
-from app.infra.rate_limiter import limiter
+from app.infra.rate_limiter import limiter,SIXTY_PER_MINUTE
 
 
 from typing import Literal
@@ -70,7 +70,7 @@ def _error(*,status_code:int, code:str,detail:str) -> HTTPException:
     response_model=WorkspaceResponse,
     status_code=status.HTTP_201_CREATED
 )
-@limiter.limit("60/minute",key_func=_user_id_or_ip)
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def create_workspace(
     request:Request,
     payload: WorkspaceCreate,
@@ -90,7 +90,7 @@ async def create_workspace(
     response_model=list[WorkspaceResponse],
     status_code=status.HTTP_200_OK
 )
-@limiter.limit("60/minute",key_func=_user_id_or_ip)
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def list_workspaces(
     request:Request,
     user : User = Depends(get_current_user),
@@ -105,7 +105,7 @@ async def list_workspaces(
     response_model=MemberResponse,
     status_code=status.HTTP_201_CREATED
 )
-@limiter.limit("60/minute",key_func=_user_id_or_ip)
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def invite_member(
     request: Request,
     workspace_id:UUID,
@@ -144,7 +144,7 @@ async def invite_member(
     "/{workspace_id}/members/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-@limiter.limit("60/minute",key_func=_user_id_or_ip)
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def remove_member(
     request:Request,
     workspace_id: UUID,
