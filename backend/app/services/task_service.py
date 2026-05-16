@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.task import Task, TaskStatus
 from app.infra.models import TaskModel
-from app.infra.repositories import task_repo
+from app.infra.repositories import task_repo , audit_repo
 
 from app.domain.workspace import WorkspaceRole
 
@@ -131,7 +131,8 @@ async def delete_task(
         session: AsyncSession,
         *,
         task_id:UUID,
-        workspace_id:UUID
+        workspace_id:UUID,
+        actor_user_id:UUID
 ) -> None:
     model = await task_repo.find_by_id(
         session = session ,task_id=task_id
@@ -142,4 +143,15 @@ async def delete_task(
         raise TaskNotFound()
     
     await task_repo.soft_delete(session=session,task_id=task_id)
+
+    await audit_repo.record(
+        session=session,
+        actor_user_id=actor_user_id,
+        workspace_id=workspace_id,
+        action="task.deleted",
+        target_id=task_id,
+        target_type="task",
+        payload={"title":model.title}
+    )
+
     await session.commit()
