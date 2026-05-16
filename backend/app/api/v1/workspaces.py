@@ -120,8 +120,8 @@ async def invite_member(
             session=session,
             workspace_id=workspace_id,
             invitee_email=payload.email,
-            role=WorkspaceRole(payload.role)
-
+            role=WorkspaceRole(payload.role),
+            actor_user_id=ctx[1].user_id,
         )
 
     except AlreadyMember:
@@ -155,7 +155,11 @@ async def remove_member(
 
     try:
         await workspace_service.remove_member(
-            session, workspace_id=workspace_id, target_user_id=user_id,
+            session,
+            workspace_id=workspace_id, 
+            target_user_id=user_id,
+            actor_user_id=ctx[1].user_id,
+
         )
     except CannotRemoveOwner:
         raise _error(
