@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.workspace import Workspace , MemberShip ,WorkspaceRole
 from app.infra.models import MemberShipModel , WorkspaceModel
-from app.infra.repositories import workspace_repo,membership_repo, user_repo
+from app.infra.repositories import workspace_repo,membership_repo, user_repo,audit_repo
 
 class WorkspaceNotFound(Exception):
     pass
@@ -69,6 +69,17 @@ async def create_workspace(
         workspace_id=ws_model.id,
         role=WorkspaceRole.ADMIN.value
     )
+
+    await audit_repo.record(
+        session=session,
+        actor_user_id=creator_id,
+        workspace_id=ws_model.id,
+        action="workspace.created",
+        target_type="workspace",
+        target_id=ws_model.id,
+        payload={"name":name}
+    )
+
     await session.commit()
     return _to_workspace_domain(ws_model)
 
@@ -103,6 +114,8 @@ async def invite_member(
         workspace_id : UUID,
         invitee_email : str,
         role : WorkspaceRole,
+        actor_user_id:UUID,
+
 )-> MemberShip:
     
     invitee = await user_repo.find_by_email(
@@ -127,6 +140,15 @@ async def invite_member(
         role=role.value
     )
 
+    await audit_repo.record(
+        session=session,
+        actor_user_id=actor_user_id,
+        workspace_id=workspace_id,
+        action="member.invited",
+        target_type="user",
+        target_id=invitee.id,
+        payload={"email":invitee_email,"role":role.value}
+    )
     await session.commit()
 
     return _to_membership_domain(m_model)
@@ -136,7 +158,8 @@ async def remove_member(
         session:AsyncSession,
         *,
         target_user_id :UUID,
-        workspace_id: UUID
+        workspace_id: UUID,
+        actor_user_id:UUID,
 )-> None:
     workspace = await workspace_repo.find_by_id(session=session,workspace_id=workspace_id)
     if workspace is None:
@@ -147,7 +170,18 @@ async def remove_member(
     
     deleted = await membership_repo.delete(session, user_id=target_user_id, workspace_id=workspace_id)
 
-    if not deleted:
+    if not deleted: 
         raise NotAMember()
     
+    await audit_repo.record(
+        session=session,
+        actor_user_id=actor_user_id,
+        workspace_id=workspace_id,
+        action="member.removed",
+        target_id=target_user_id,
+        target_type="user",
+        
+
+    )
+
     await session.commit()

@@ -195,6 +195,7 @@ async def delete_task(
             session,
             task_id=task_id,
             workspace_id=workspace_id,
+            actor_user_id=ctx[1].user_id
         )
     except TaskNotFound:
         raise _error(
