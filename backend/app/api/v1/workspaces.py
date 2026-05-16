@@ -18,7 +18,9 @@ from app.infra.rate_limiter import limiter,SIXTY_PER_MINUTE
 
 from typing import Literal
 
-
+import base64
+from app.infra.repositories import audit_repo
+from app.infra.models import AuditLogModel
 
 router = APIRouter(prefix="/workspaces",tags=["workspaces"])
 
@@ -57,6 +59,35 @@ class WorkspaceResponse(BaseModel):
             owner_id = w.owner_id,
             created_at = w.created_at
         )
+
+
+class AuditResponse(BaseModel):
+    id :UUID
+    actor_user_id:UUID|None
+    workspace_id: UUID | None
+    action:str
+    target_type:str
+    target_id:UUID
+    payload:dict
+    created_at: datetime
+
+    @classmethod
+    def from_model(cls, m :AuditLogModel) -> "AuditResponse":
+        return cls(
+            id=m.id,
+            actor_user_id=m.actor_user_id,
+            workspace_id=m.workspace_id,
+            action = m.action,
+            target_type=m.target_type,
+            target_id=m.target_id,
+            payload=m.payload,
+            created_at=m.created_at
+
+        )
+
+class AuditPage(BaseModel):
+    items:list[AuditResponse]
+    next_cursor:str | None
     
 
 def _error(*,status_code:int, code:str,detail:str) -> HTTPException:
@@ -64,6 +95,19 @@ def _error(*,status_code:int, code:str,detail:str) -> HTTPException:
         status_code=status_code,
         detail={"detail":detail,"code":code}
     )
+
+def _encode_cursor(m:AuditLogModel)-> str:
+    raw = f"{m.created_at.isoformat()}|{m.id}"
+    return base64.urlsafe_b64encode(raw.encode()).decode()
+
+def _decode_cursor(cursor:str)-> tuple[datetime,UUID]:
+    raw = base64.urlsafe_b64decode(cursor.encode()).decode()
+    ts_str , id_str =  raw.split("|",1)
+    return datetime.fromisoformat(ts_str),UUID(id_str)
+
+
+
+
 
 @router.post(
     "",
@@ -173,3 +217,51 @@ async def remove_member(
             code="member_not_found",
             detail="that user is not a member of this workspace",
         )
+    
+
+
+@router.get(
+    "/{workspace_id}/audit",
+    response_model=AuditPage,
+)
+@limiter.limit(SIXTY_PER_MINUTE, key_func=_user_id_or_ip)
+async def list_audit(
+    request: Request,
+    workspace_id: UUID,
+    limit: int = 50,
+    cursor: str | None = None,
+    action: str | None = None,
+    ctx: tuple[Workspace, MemberShip] = Depends(
+        require_workspace_role({"admin"})
+    ),
+    session: AsyncSession = Depends(get_db),
+) -> AuditPage:
+    limit = max(1, min(limit, 100))  # clamp; never trust the client
+
+    before: tuple[datetime, UUID] | None = None
+    if cursor is not None:
+        try:
+            before = _decode_cursor(cursor)
+        except (ValueError, TypeError):
+            raise _error(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code="invalid_cursor",
+                detail="malformed pagination cursor",
+            )
+
+    rows = await audit_repo.list_for_workspace(
+        session,
+        workspace_id,
+        limit=limit + 1,
+        before=before,
+        action=action,
+    )
+
+    has_more = len(rows) > limit
+    page = rows[:limit]
+    next_cursor = _encode_cursor(page[-1]) if has_more else None
+
+    return AuditPage(
+        items=[AuditResponse.from_model(r) for r in page],
+        next_cursor=next_cursor,
+    )
