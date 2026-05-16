@@ -66,4 +66,15 @@ async def authenticate(
 
     if model is None or not password_ok:
         raise InvalidCredentials()
+
+    await audit_repo.record(
+        session=session,
+        actor_user_id=model.id,
+        workspace_id=None,
+        action="user.logged_in",
+        target_type="user",
+        target_id=model.id
+
+    )
+    await session.commit()
     return _to_domain(model)
