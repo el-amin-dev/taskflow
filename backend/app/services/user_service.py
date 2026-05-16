@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.user import Role,User
 from app.infra.models import UserModel
-from app.infra.repositories import user_repo
+from app.infra.repositories import user_repo , audit_repo
 from app.infra.security import hash_password , verify_password
 
 _DUMMY_HASH = hash_password("constant-time-dummy-never-matches")
@@ -35,6 +35,16 @@ async def register (
             session,email=email,
             hashed_password=hash_password(password),
             role=role.value
+        )
+        await audit_repo.record(
+            session=session,
+            actor_user_id=model.id,
+            workspace_id=None,
+            action="user.registered",
+            target_id=model.id,
+            target_type="user",
+            payload={"email":email}
+            
         )
         await session.commit()
     except IntegrityError:
