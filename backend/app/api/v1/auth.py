@@ -61,6 +61,10 @@ class ErrorOut(BaseModel):
 class RefreshRequest(BaseModel):
     refresh_token:str
 
+class LogoutRequest(BaseModel):
+    refresh_token:str
+
+
 def _error(
         *,
         status_code : int ,
@@ -221,3 +225,30 @@ async def refresh(
         refresh_token=result.new_token,
         expires_in=settings.jwt_access_ttl_minutes * 60
     )
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
+async def logout(
+    request:Request,
+    payload:LogoutRequest,
+    session:AsyncSession = Depends(get_db)
+)-> None:
+    killed  = refresh_store.revoke(payload.refresh_token)
+
+    if killed is not None:
+        family_id , user_id = killed
+        await audit_repo.record(
+            session=session,
+            actor_user_id=user_id,
+            workspace_id=None,
+            action="auth.logged_out",
+            target_id=user_id,
+            target_type="user",
+            payload={"family_id":str(family_id)}
+        )
+        await session.commit()
+    
+    return None

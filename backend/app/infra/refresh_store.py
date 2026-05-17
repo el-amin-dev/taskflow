@@ -114,3 +114,15 @@ def invalidate_family(family_id: UUID) -> None:
 
 
 
+def revoke(token:str) -> tuple[UUID,UUID] | None:
+    r = _client()
+    raw = r.get(f"refresh:{token}")
+
+    if raw is None:
+        return None
+    
+    rec = json.loads(raw)
+    family_id = UUID(rec["family_id"])
+    user_id = UUID(rec["user_id"])
+    invalidate_family(family_id=family_id)
+    return family_id,user_id
