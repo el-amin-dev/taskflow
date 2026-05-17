@@ -61,3 +61,57 @@ async def test_refresh_rotates_and_retires_old(client: AsyncClient) -> None:
     )
     assert replay.status_code == 401, replay.text
 
+async def test_replaying_spent_token_kills_whole_family(
+    client: AsyncClient,
+) -> None:
+    t = await _register_and_login(client, f"rf-{uuid4()}@example.com")
+    rt_a = t["refresh_token"]
+
+    rb = await client.post("/v1/auth/refresh", json={"refresh_token": rt_a})
+    assert rb.status_code == 200, rb.text
+    rt_b = rb.json()["refresh_token"]
+
+    rc = await client.post("/v1/auth/refresh", json={"refresh_token": rt_b})
+    assert rc.status_code == 200, rc.text
+    rt_c = rc.json()["refresh_token"]
+
+    replay = await client.post(
+        "/v1/auth/refresh", json={"refresh_token": rt_a}
+    )
+    assert replay.status_code == 401, replay.text
+
+    dead_c = await client.post(
+        "/v1/auth/refresh", json={"refresh_token": rt_c}
+    )
+    assert dead_c.status_code == 401, dead_c.text
+
+    dead_b = await client.post(
+        "/v1/auth/refresh", json={"refresh_token": rt_b}
+    )
+    assert dead_b.status_code == 401, dead_b.text
+
+
+async def test_no_failure_oracle(client: AsyncClient) -> None:
+    t = await _register_and_login(client, f"rf-{uuid4()}@example.com")
+
+    unknown = await client.post(
+        "/v1/auth/refresh", json={"refresh_token": "never-existed-xyz"}
+    )
+
+    junk = await client.post(
+        "/v1/auth/refresh", json={"refresh_token": "!!!not-base64!!!"}
+    )
+
+    rt = t["refresh_token"]
+    spent = await client.post(
+        "/v1/auth/refresh", json={"refresh_token": rt}
+    )
+    assert spent.status_code == 200, spent.text
+    reuse = await client.post(
+        "/v1/auth/refresh", json={"refresh_token": rt}
+    )
+
+    assert unknown.status_code == 401
+    assert junk.status_code == 401
+    assert reuse.status_code == 401
+    assert unknown.json() == junk.json() == reuse.json()
