@@ -1,6 +1,5 @@
 
 
-
 from fastapi import APIRouter ,Depends, HTTPException , status
 from pydantic import BaseModel , EmailStr , Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,7 +78,8 @@ def _error(
     )
 
 
-    
+_INVALID_REFRESH = "invalid or expired refresh token"    
+
 
 @router.post(
     "/register",
@@ -177,7 +177,7 @@ async def refresh(
         raise _error(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="invalid_token",
-            detail="invalid or expired refresh token ",
+            detail=_INVALID_REFRESH,
             headers={"WWW-Authenticate":"Bearer"}
         )
     if isinstance(result,refresh_store.ReuseDetected):
@@ -194,7 +194,7 @@ async def refresh(
         raise _error(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="invalid_token",
-            detail="invalid or expired refresh token",
+            detail=_INVALID_REFRESH,
             headers={"WWW-Authenticate" : "Bearer"}
         )
     
@@ -203,7 +203,7 @@ async def refresh(
         raise _error(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="invalid_token",
-            detail="invalid or expired refresh token",
+            detail=_INVALID_REFRESH,
             headers={"WWW-Authenticate" : "Bearer"}
         )
     await audit_repo.record(
