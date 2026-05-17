@@ -22,6 +22,7 @@ class NotFound:
 @dataclass(frozen=True,slots=True)
 class ReuseDetected:
     family_id:UUID
+    user_id:UUID
 
 
 RotateResult = Rotated | NotFound | ReuseDetected
@@ -74,7 +75,7 @@ def rotate(token:str) -> RotateResult:
     if rec["status"] == "rotated":
 
         invalidate_family(UUID(family_id)) 
-        return ReuseDetected(family_id=UUID(family_id))
+        return ReuseDetected(family_id=UUID(family_id),user_id=UUID(rec['user_id']))
 
 
     user_id = rec["user_id"]
