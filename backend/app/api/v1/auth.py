@@ -17,6 +17,9 @@ from app.api.dependencies import get_current_user , _user_id_or_ip
 from fastapi import Request
 from app.infra.rate_limiter import limiter,SIXTY_PER_MINUTE
 
+from app.infra import refresh_store
+
+from app.infra.repositories import audit_repo, user_repo
 
 router = APIRouter (prefix="/auth",tags=["auth"])
 
@@ -47,12 +50,20 @@ class UserResponse(BaseModel):
     
 class TokenResponse(BaseModel):
     access_token:str
+    refresh_token:str
     token_type:str = "bearer"
     expires_in:int
 
 class ErrorOut(BaseModel):
     detail:str
     code : str
+
+class RefreshRequest(BaseModel):
+    refresh_token:str
+
+class LogoutRequest(BaseModel):
+    refresh_token:str
+
 
 def _error(
         *,
@@ -127,8 +138,11 @@ async def login(
         
     settings = get_settings()
     token = create_access_token(user_id=user.id , role=user.role.value)
+    refresh_token,_family_id = refresh_store.create(user.id)
+
     return TokenResponse(
         access_token=token,
+        refresh_token=refresh_token,
         expires_in=settings.jwt_access_ttl_minutes * 60
     )
 
@@ -144,3 +158,97 @@ async def me (
 
 ) -> UserResponse:
     return UserResponse.from_domain(user)
+
+
+@router.post(
+    "/refresh",
+    response_model=TokenResponse
+)
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
+async def refresh(
+    request:Request,
+    payload:RefreshRequest,
+    session:AsyncSession = Depends(get_db)
+
+)-> TokenResponse:
+    result = refresh_store.rotate(payload.refresh_token)
+
+    if isinstance(result,refresh_store.NotFound):
+        raise _error(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="invalid_token",
+            detail="invalid or expired refresh token ",
+            headers={"WWW-Authenticate":"Bearer"}
+        )
+    if isinstance(result,refresh_store.ReuseDetected):
+        await audit_repo.record(
+            session,
+            actor_user_id=result.user_id,
+            workspace_id=None,
+            action="auth.refresh_reuse_detected",
+            target_type="user",
+            target_id=result.user_id,
+            payload={"family_id":str(result.family_id)}
+        )
+        await session.commit()
+        raise _error(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="invalid_token",
+            detail="invalid or expired refresh token",
+            headers={"WWW-Authenticate" : "Bearer"}
+        )
+    
+    user = await user_repo.find_by_id(session,result.user_id)
+    if user is None:
+        raise _error(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="invalid_token",
+            detail="invalid or expired refresh token",
+            headers={"WWW-Authenticate" : "Bearer"}
+        )
+    await audit_repo.record(
+        session=session,
+        actor_user_id=user.id,
+        action="auth.refreshed",
+        workspace_id=None,
+        target_id=user.id,
+        target_type="user",
+        payload={}
+    )
+    await session.commit()
+
+    settings = get_settings()
+
+    access = create_access_token(user_id=user.id,role=user.role)
+    return TokenResponse(
+        access_token=access,
+        refresh_token=result.new_token,
+        expires_in=settings.jwt_access_ttl_minutes * 60
+    )
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+@limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
+async def logout(
+    request:Request,
+    payload:LogoutRequest,
+    session:AsyncSession = Depends(get_db)
+)-> None:
+    killed  = refresh_store.revoke(payload.refresh_token)
+
+    if killed is not None:
+        family_id , user_id = killed
+        await audit_repo.record(
+            session=session,
+            actor_user_id=user_id,
+            workspace_id=None,
+            action="auth.logged_out",
+            target_id=user_id,
+            target_type="user",
+            payload={"family_id":str(family_id)}
+        )
+        await session.commit()
+    
+    return None
