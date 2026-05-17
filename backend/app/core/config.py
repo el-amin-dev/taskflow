@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     )
 
     jwt_access_ttl_minutes: int = 15
-    jwt_refresh_ttl_days: int = 7
+    jwt_refresh_ttl_days: int = 30
 
 
     cors_origins:list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
