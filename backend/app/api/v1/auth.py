@@ -17,6 +17,7 @@ from app.api.dependencies import get_current_user , _user_id_or_ip
 from fastapi import Request
 from app.infra.rate_limiter import limiter,SIXTY_PER_MINUTE
 
+from app.infra import refresh_store
 
 router = APIRouter (prefix="/auth",tags=["auth"])
 
@@ -47,6 +48,7 @@ class UserResponse(BaseModel):
     
 class TokenResponse(BaseModel):
     access_token:str
+    refresh_token:str
     token_type:str = "bearer"
     expires_in:int
 
@@ -127,8 +129,11 @@ async def login(
         
     settings = get_settings()
     token = create_access_token(user_id=user.id , role=user.role.value)
+    refresh_token,_family_id = refresh_store.create(user.id)
+
     return TokenResponse(
         access_token=token,
+        refresh_token=refresh_token,
         expires_in=settings.jwt_access_ttl_minutes * 60
     )
 
