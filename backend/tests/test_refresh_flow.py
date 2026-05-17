@@ -115,3 +115,27 @@ async def test_no_failure_oracle(client: AsyncClient) -> None:
     assert junk.status_code == 401
     assert reuse.status_code == 401
     assert unknown.json() == junk.json() == reuse.json()
+
+
+async def test_logout_is_idempotent(client: AsyncClient) -> None:
+    t = await _register_and_login(client, f"rf-{uuid4()}@example.com")
+    rt = t["refresh_token"]
+
+    first = await client.post(
+        "/v1/auth/logout", json={"refresh_token": rt}
+    )
+    assert first.status_code == 204, first.text
+    dead = await client.post(
+        "/v1/auth/refresh", json={"refresh_token": rt}
+    )
+    assert dead.status_code == 401, dead.text
+
+    again = await client.post(
+        "/v1/auth/logout", json={"refresh_token": rt}
+    )
+    assert again.status_code == 204, again.text
+
+    unknown = await client.post(
+        "/v1/auth/logout", json={"refresh_token": "never-existed-xyz"}
+    )
+    assert unknown.status_code == 204, unknown.text
