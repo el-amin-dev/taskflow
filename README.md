@@ -1,28 +1,79 @@
 # TaskFlow
 
-A self-hosted team task manager with workspace-scoped role-based access control. Built as a portfolio project to demonstrate production-grade backend engineering: 12-factor design, OWASP-aware security, Clean Architecture, async Python, and a deploy-anywhere container stack.
+A self-hosted, multi-tenant team task manager with workspace-scoped
+role-based access control — built as a portfolio project to demonstrate
+production-grade engineering, not tutorial code.
 
-> **Status:** Phase A — Backend foundations *(in progress)*. Auth (register + JWT login + `/me`) is live. RBAC, workspaces, and tasks are next.
+The point isn't the product. It's the reasoning a senior engineer
+applies *while* it works: Clean Architecture with enforced boundaries,
+OWASP-aware security with the decisions documented in code, 12-factor
+configuration, async Python end to end, a deploy-anywhere container
+stack, and an integration test suite that proves the security
+boundaries — not just the happy paths.
+
+> **Project status**
+>
+> - **Phase A — Backend** · ✅ **complete** · auth, RBAC, workspaces,
+>   tasks, comments, activity feed, append-only audit log, refresh
+>   tokens with theft detection, rate limiting — 93 integration tests
+>   against real Postgres + Redis
+> - **Phase B — Frontend + CLI** · 🚧 *planned* · SvelteKit web UI ·
+>   Typer + httpx Python CLI
+> - **Phase C — Cloud / Ops** · 🚧 *planned* · Kubernetes · Terraform ·
+>   AWS · CI/CD · Prometheus + Grafana · tracing
 
 ---
 
-## Tech Stack
+## Repository layout
 
-**Backend.** FastAPI · SQLAlchemy 2.x async · asyncpg · Alembic · PostgreSQL 16 · Redis 7 · Pydantic v2 · argon2-cffi · PyJWT · pytest
+This is a monorepo. Each top-level component is independently
+documented.
 
-**Containers.** Docker · docker compose · multi-stage builds · non-root runtime user
+| Path        | Component             | Status         |
+|-------------|-----------------------|----------------|
+| `backend/`  | FastAPI API service   | ✅ complete     |
+| `frontend/` | SvelteKit web UI      | 🚧 coming soon  |
+| `cli/`      | Python CLI (Typer)    | 🚧 coming soon  |
+| `docs/`     | Project documentation | ✅ live         |
 
-**Frontend** *(planned, Phase B)*. SvelteKit · TailwindCSS
-
-**CLI** *(planned, Phase B)*. Typer · httpx
-
-**Infra** *(planned, Phase C)*. Kubernetes · Terraform · AWS · Prometheus · Grafana
+> The `frontend/` and `cli/` directories will land in Phase B. They
+> consume the same API documented here — the backend is API-first and
+> already serves a complete OpenAPI contract, so the frontend and CLI
+> can be built against it independently.
 
 ---
 
-## Quickstart
+## Why this project is interesting
 
-Requires Docker and docker compose. Clone, copy env, run.
+- **Security is designed, not bolted on.**
+  - Login is constant-time — wrong password and unknown account return
+    byte-identical responses (measured timing ratio ~1.04)
+  - Cross-tenant access returns a 404 identical to "does not exist" —
+    resource existence is never disclosed
+  - Refresh tokens rotate single-use; a replayed token kills the whole
+    token family
+  - Each defense names the OWASP risk it addresses, in the code
+
+- **Architecture has rules, and they're enforced.**
+  - Dependencies point inward — the domain layer knows nothing about
+    HTTP, SQL, or Redis
+  - Services own transactions; repositories speak SQL
+  - Consistent across every feature, not aspirational
+
+- **Boundaries are tracked, not hidden.**
+  - Deliberate design limits are filed as tracked issues and named in
+    the docs — not silently left for a reviewer to find
+  - Knowing and recording what a system *doesn't* do is part of the
+    work
+
+The depth lives in [`/docs`](./docs).
+
+---
+
+## Quickstart (5 minutes)
+
+Requires Docker and Docker Compose. No local Python, Postgres, or
+Redis needed.
 
 ```bash
 git clone https://github.com/el-amin-dev/taskflow.git
@@ -35,177 +86,100 @@ Wait ~10 seconds for healthchecks, then verify:
 
 ```bash
 curl http://localhost:8000/health
-# {"status":"ok","uptime_seconds":3}
+# {"status":"ok","uptime_seconds":12.4}
 
 curl http://localhost:8000/ready
 # {"status":"ready","checks":{"postgres":"ok"}}
 ```
 
-Apply database migrations (one-time):
+Apply migrations (one-time):
 
 ```bash
 docker compose exec api alembic upgrade head
 ```
 
-Try the full auth flow:
+Walk the auth flow:
 
 ```bash
-# 1. register a user
+# 1. register
 curl -X POST http://localhost:8000/v1/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"email":"alice@example.com","password":"hunter2pass"}'
+  -d '{"email":"alice@example.com","password":"a-strong-passphrase"}'
 
-# 2. log in and capture the access token
+# 2. log in, capture the token
 TOKEN=$(curl -s -X POST http://localhost:8000/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"alice@example.com","password":"hunter2pass"}' \
-  | python -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+  -d '{"email":"alice@example.com","password":"a-strong-passphrase"}' \
+  | python -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-# 3. use the token to fetch your own profile
+# 3. use it
 curl http://localhost:8000/v1/auth/me \
   -H "Authorization: Bearer $TOKEN"
 ```
 
----
+Interactive API docs (served live by the backend):
 
-## Architecture
-
-Clean Architecture layout: dependencies point inward. HTTP, the database, and external clients are all infrastructure concerns; the domain knows nothing about them.
-
-```
-backend/app/
-├── api/         — HTTP routes (FastAPI), Pydantic schemas (request/response only)
-│   ├── dependencies.py  — reusable Depends() targets (get_current_user)
-│   └── v1/auth.py       — /v1/auth/{register,login,me}
-├── services/    — business logic, owns transactions
-│   └── user_service.py  — register(), authenticate()
-├── domain/      — pure types (dataclasses, enums) — no framework imports
-│   └── user.py          — Role enum, frozen User dataclass
-├── infra/       — DB engine, ORM models, repositories, security helpers
-│   ├── db.py
-│   ├── models.py
-│   ├── security.py      — argon2 + JWT helpers
-│   └── repositories/user_repo.py
-└── core/        — config, logging
-```
-
-Migrations live in `backend/migrations/` (Alembic, async). Tests live in `backend/tests/` (pytest, async, integration against real Postgres in compose).
+- **Swagger UI** — http://localhost:8000/docs
+- **ReDoc** — http://localhost:8000/redoc
+- **OpenAPI spec** — http://localhost:8000/openapi.json
 
 ---
 
-## Auth Flow
+## What it does
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant C as Client
-    participant API as FastAPI
-    participant S as user_service
-    participant DB as Postgres
+- A **workspace** is a tenant
+- Users register, create workspaces, invite others with a role —
+  `admin`, `member`, or `viewer`
+- Everything else is scoped to a workspace and gated by that role
 
-    C->>API: POST /v1/auth/register { email, password }
-    API->>S: register(email, password)
-    S->>S: argon2 hash password
-    S->>DB: INSERT INTO users
-    DB-->>S: id, created_at
-    S-->>API: User
-    API-->>C: 201 { id, email, role, created_at }
+| Capability    | Summary                                                         |
+|---------------|-----------------------------------------------------------------|
+| Auth          | Register, JWT login, `/me`, single-use refresh rotation, logout |
+| Workspaces    | Create, invite/remove members, per-workspace roles              |
+| Tasks         | CRUD scoped to a workspace, status, assignee, soft delete       |
+| Comments      | Threaded on tasks, author-or-admin moderation, soft delete      |
+| Activity feed | Member-readable stream of workspace events                      |
+| Audit log     | Append-only, admin-readable, keyset-paginated                   |
+| Rate limiting | Redis-backed, per-identity                                      |
 
-    C->>API: POST /v1/auth/login { email, password }
-    API->>S: authenticate(email, password)
-    S->>DB: SELECT users WHERE email=?
-    DB-->>S: row | NULL
-    S->>S: argon2 verify (constant-time, runs even on NULL)
-    S-->>API: User | raise InvalidCredentials
-    API->>API: sign HS256 JWT (sub=id, role, exp)
-    API-->>C: 200 { access_token, token_type, expires_in: 900 }
-
-    C->>API: GET /v1/auth/me<br/>Authorization: Bearer <token>
-    API->>API: get_current_user dependency
-    API->>API: decode JWT, extract sub claim
-    API->>DB: SELECT users WHERE id=sub
-    DB-->>API: row | NULL
-    API-->>C: 200 { id, email, role, ... } | 401
-```
-
-### Error Responses
-
-All API errors share a unified shape:
-
-```json
-{
-  "detail": {
-    "detail": "human-readable message",
-    "code": "machine-readable-slug"
-  }
-}
-```
-
-Defined codes:
-
-| Code                  | When                                          | HTTP |
-|-----------------------|-----------------------------------------------|------|
-| `email_unavailable`   | Registering an email already in use           | 400  |
-| `invalid_credentials` | Login failed (any reason)                     | 401  |
-| `invalid_token`       | Bearer token missing, malformed, or expired   | 401  |
-
-**Security note (OWASP A07).** Login failures and token failures return *byte-identical* response bodies regardless of cause. An attacker cannot distinguish "wrong password" from "no such user" by status, body, or timing — the service runs an argon2 verify even when the email doesn't exist (measured timing ratio: ~1.04 between the two paths). This is enforced by a test (`test_login_unknown_email_same_response_as_wrong_password`).
+Full route inventory and the uniform error contract:
+[`docs/API.md`](./docs/API.md).
 
 ---
 
-## Status
+## Tech stack
 
-**Phase A — Backend foundations**
-
-- [x] Layered scaffold + pinned dependencies
-- [x] Typed env-driven config (12-factor §III)
-- [x] Structured JSON logging (12-factor §XI)
-- [x] FastAPI entrypoint + `/health` + `/ready` (real DB check)
-- [x] Dockerized stack (api + postgres + redis), non-root runtime
-- [x] Async SQLAlchemy engine + db readiness probe
-- [x] Alembic migrations (async template, baseline applied)
-- [x] User model (UUID PK, indexed email, argon2 hashed password)
-- [x] `POST /v1/auth/register` with full vertical slice + integration tests
-- [x] `POST /v1/auth/login` — JWT issuance (HS256, 15min TTL)
-- [x] `GET /v1/auth/me` — JWT verification via `get_current_user` dependency
-- [ ] Workspaces + memberships + RBAC enforcement
-- [ ] Tasks with assignment, status, deadlines
-- [ ] Comments + activity feed
-- [ ] Rate limiting (slowapi)
-- [ ] Audit log
-- [ ] Refresh tokens (separate Issue — rotation, blacklist, family detection)
-
-**Phase B — Frontend + CLI** *(not started)*
-
-- [ ] SvelteKit web app
-- [ ] Python CLI (Typer + httpx)
-
-**Phase C — Production deploy** *(not started)*
-
-- [ ] CI/CD pipeline (GitHub Actions: lint, typecheck, test, build image)
-- [ ] Kubernetes manifests + Helm chart
-- [ ] Terraform AWS infra (ECS/EKS, RDS, ElastiCache)
-- [ ] Prometheus metrics + Grafana dashboards
-- [ ] OpenTelemetry tracing + correlation IDs
+- **Backend** — FastAPI · SQLAlchemy 2.x (async) · asyncpg · Alembic ·
+  PostgreSQL 16 · Redis 7 · Pydantic v2 · argon2-cffi · PyJWT ·
+  slowapi · pytest
+- **Containers** — Docker · Docker Compose · multi-stage build ·
+  non-root runtime user
+- **Frontend** *(Phase B)* — SvelteKit · TailwindCSS
+- **CLI** *(Phase B)* — Typer · httpx
+- **Infra** *(Phase C)* — Kubernetes · Terraform · AWS ·
+  Prometheus · Grafana · OpenTelemetry
 
 ---
 
-## Development Discipline
+## Documentation
 
-Every change goes through the same loop:
+| Doc                                            | What's in it                                               |
+|------------------------------------------------|------------------------------------------------------------|
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | The layers, the dependency rule, transaction ownership     |
+| [docs/SECURITY.md](./docs/SECURITY.md)         | Threat model, the OWASP map, the non-disclosure discipline |
+| [docs/API.md](./docs/API.md)                   | Every endpoint, the unified error contract, the auth model |
+| [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md)   | Run it, test it, add a migration, the contribution loop    |
+| [docs/DECISIONS.md](./docs/DECISIONS.md)       | The "why" behind the locked design choices                 |
 
-1. Open a GitHub Issue describing the work.
-2. Branch off `main` (`feat/`, `fix/`, `docs/`, `refactor/`).
-3. Commit using [conventional commits](https://www.conventionalcommits.org/) — `feat(scope):`, `fix(scope):`, `test:`, `docs:`, `refactor:`. One Issue → one PR → multiple atomic commits when warranted.
-4. Squash-merge to `main` with `closes #N` so the Issue auto-closes.
+---
 
-Security decisions are explicit and reference [OWASP Top 10 (2021)](https://owasp.org/Top10/) where relevant. Already enforced and tested:
+## Development discipline
 
-- **A02** (Cryptographic Failures) — argon2id password hashing, HS256 JWT signed with 32+ char secret, no secrets in committed config (alembic.ini `sqlalchemy.url` is intentionally empty).
-- **A03** (Injection) — parameterized queries via SQLAlchemy ORM, no string-concat SQL.
-- **A05** (Security Misconfiguration) — non-root container user (uid 1001), `.env` gitignored.
-- **A07** (Auth Failures) — constant-time login, unified 401 for any auth failure, no email enumeration on registration, single `InvalidToken` exception flattens all JWT decode failures, HS256 hardcoded in decoder (prevents algorithm confusion).
-- **A09** (Logging Failures) — `hashed_password` never appears in API responses (asserted by test).
+- Every change: open an Issue → branch off `main` → atomic
+  [conventional commits](https://www.conventionalcommits.org/) →
+  squash-merge with `closes #N`
+- History is meant to be read
+- Details: [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md)
 
 ---
 
