@@ -22,6 +22,16 @@ import base64
 from app.infra.repositories import audit_repo
 from app.infra.models import AuditLogModel
 
+
+ACTIVITY_ACTIONS = {
+    "workspace.created",
+    "member.invited",
+    "member.removed",
+    "task.deleted",
+    "comment.created",
+    "comment.deleted",
+}
+
 router = APIRouter(prefix="/workspaces",tags=["workspaces"])
 
 class WorkspaceCreate(BaseModel):
@@ -89,6 +99,33 @@ class AuditPage(BaseModel):
     items:list[AuditResponse]
     next_cursor:str | None
     
+class ActivityResponse(BaseModel):
+    id: UUID
+    actor_user_id: UUID | None
+    workspace_id: UUID | None
+    action: str
+    target_type: str
+    target_id: UUID
+    payload: dict
+    created_at: datetime
+
+    @classmethod
+    def from_model(cls, m: AuditLogModel) -> "ActivityResponse":
+        return cls(
+            id=m.id,
+            actor_user_id=m.actor_user_id,
+            workspace_id=m.workspace_id,
+            action=m.action,
+            target_type=m.target_type,
+            target_id=m.target_id,
+            payload=m.payload,
+            created_at=m.created_at,
+        )
+
+
+class ActivityPage(BaseModel):
+    items: list[ActivityResponse]
+    next_cursor: str | None
 
 def _error(*,status_code:int, code:str,detail:str) -> HTTPException:
     return HTTPException(
@@ -263,5 +300,49 @@ async def list_audit(
 
     return AuditPage(
         items=[AuditResponse.from_model(r) for r in page],
+        next_cursor=next_cursor,
+    )
+
+
+
+@router.get(
+    "/{workspace_id}/activity",
+    response_model=ActivityPage,
+    status_code=status.HTTP_200_OK,
+)
+@limiter.limit(SIXTY_PER_MINUTE, key_func=_user_id_or_ip)
+async def list_activity(
+    request: Request,
+    workspace_id: UUID,
+    limit: int = 50,
+    cursor: str | None = None,
+    ctx: tuple[Workspace, MemberShip] = Depends(
+        require_workspace_role({"admin", "member", "viewer"})
+    ),
+    session: AsyncSession = Depends(get_db),
+) -> ActivityPage:
+    limit = max(1, min(limit, 100)) 
+    before: tuple[datetime, UUID] | None = None
+    if cursor is not None:
+        try:
+            before = _decode_cursor(cursor)
+        except (ValueError, TypeError):
+            raise _error(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                code="invalid_cursor",
+                detail="malformed pagination cursor",
+            )
+    rows = await audit_repo.list_for_workspace(
+        session,
+        workspace_id,
+        limit=limit + 1,
+        before=before,
+        actions=ACTIVITY_ACTIONS,
+    )
+    has_more = len(rows) > limit
+    page = rows[:limit]
+    next_cursor = _encode_cursor(page[-1]) if has_more else None
+    return ActivityPage(
+        items=[ActivityResponse.from_model(r) for r in page],
         next_cursor=next_cursor,
     )
