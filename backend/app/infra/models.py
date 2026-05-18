@@ -66,3 +66,14 @@ class AuditLogModel(Base):
     payload:        Mapped[dict]            = mapped_column(JSONB,nullable=False,server_default="{}")
     created_at:     Mapped[datetime]        = mapped_column(DateTime(timezone=True),server_default=func.now(),nullable=False)
 
+
+class TaskCommentModel(Base):
+    __tablename__= "task_comments"
+    id:         Mapped[UUID]            = mapped_column(pgUUID(as_uuid=True),primary_key=True,default=uuid4)
+    task_id:    Mapped[UUID]            = mapped_column(pgUUID(as_uuid=True),ForeignKey("tasks.id",ondelete="CASCADE"),nullable=False,index=True)
+    author_id:  Mapped[Optional[UUID]]  = mapped_column(pgUUID(as_uuid=True),ForeignKey("users.id",ondelete="SET NULL"),nullable=True)
+    body:       Mapped[str]             = mapped_column(Text,nullable=False)
+    created_at: Mapped[datetime]        = mapped_column(DateTime(timezone=True),server_default=func.now(),nullable=False)
+    updated_at: Mapped[datetime]        = mapped_column(DateTime(timezone=True),server_default=func.now(),onupdate=func.now(),nullable=False)
+    deleted_at: Mapped[datetime|None]   = mapped_column(DateTime(timezone=True),nullable=True,)
+
