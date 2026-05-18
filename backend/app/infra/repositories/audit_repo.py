@@ -37,6 +37,7 @@ async def list_for_workspace(
         limit:int,
         before:tuple[datetime,UUID] | None = None,
         action:str | None=None,
+        actions:set[str] | None=None,
 
 )->list[AuditLogModel]:
     stmt = select(AuditLogModel).where(
@@ -45,6 +46,9 @@ async def list_for_workspace(
 
     if action is not None:
         stmt = stmt.where(AuditLogModel.action == action)
+    
+    if actions is not None:
+        stmt = stmt.where(AuditLogModel.action.in_(actions))
 
     if before is not None:
         stmt = stmt.where(
