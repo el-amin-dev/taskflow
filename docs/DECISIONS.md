@@ -227,6 +227,64 @@ verify, not just assert.)
 
 ---
 
+## Designed seams
+
+The opposite of a tracked boundary. A boundary is something the system
+*doesn't* do yet; a **seam** is a point the system was deliberately
+shaped so it *can* change there — cheaply, locally, without a redesign.
+This is the YAGNI payoff: not building the future, but leaving it a
+clean door instead of a wall.
+
+Each seam is one place. The diagram shows where each sits in the
+layered architecture — the value of a seam is *where* it is.
+
+```mermaid
+flowchart TB
+    subgraph api["api"]
+        RG["require_workspace_role({set})<br/><b>seam: add a role</b>"]
+        EH["exception envelope<br/><b>seam: flatten here</b>"]
+    end
+    subgraph services["services"]
+        AF["activity = ACTIVITY_ACTIONS filter<br/><b>seam: split from audit</b>"]
+    end
+    subgraph infra["infra"]
+        RP["repositories (functions)<br/><b>seam: → class when stateful</b>"]
+    end
+
+    RG -.->|"one set member<br/>+ one check"| RGx["new role live"]
+    EH -.->|"one custom<br/>handler"| EHx["flat error shape"]
+    AF -.->|"own table +<br/>own read path"| AFx["independent activity stream"]
+    RP -.->|"fn → class,<br/>callers unchanged"| RPx["caching / per-call state"]
+
+    style RG fill:#23415e,stroke:#13283b,color:#fff
+    style EH fill:#23415e,stroke:#13283b,color:#fff
+    style AF fill:#23415e,stroke:#13283b,color:#fff
+    style RP fill:#23415e,stroke:#13283b,color:#fff
+    style RGx fill:#1f6f43,stroke:#0d3b24,color:#fff
+    style EHx fill:#1f6f43,stroke:#0d3b24,color:#fff
+    style AFx fill:#1f6f43,stroke:#0d3b24,color:#fff
+    style RPx fill:#1f6f43,stroke:#0d3b24,color:#fff
+```
+
+| Seam | Where | Bends into | Cost when needed |
+|------|-------|-----------|------------------|
+| **RBAC roles** | `require_workspace_role({...})` takes a *set* | a new role (e.g. `auditor`) | add the role to the set + its check — no signature or call-site change |
+| **Activity ↔ audit split** | the `ACTIVITY_ACTIONS` filter (Option A) | an independent activity stream with seen-state / retention | own table + own read path; the filter is the documented fault line |
+| **Error envelope flatten** | one exception handler, not 30 call sites | a flat `{code, message}` | a single custom handler; every route already raises the same shape |
+| **Repository shape** | repos are functions | a class, when caching / per-call state arrives | function → class; callers ask named functions, so call sites are unaffected |
+
+- **Why name them** — an unnamed extension point is indistinguishable
+  from accidental coupling. Naming the seam is the difference between
+  "the design anticipated this" and "we got lucky."
+- **Why not build them now** — YAGNI. A seam costs one line of
+  forethought; a speculative abstraction costs carry-weight forever. A
+  door is cheap; a room you don't use is not.
+- **Status** — these are *intentions*, not promises. Each becomes a
+  real change only when a real requirement arrives — driven by need,
+  not anticipated.
+
+---
+
 ## Tracked boundaries
 
 Deliberate limits, filed as issues so they're managed, not forgotten.
