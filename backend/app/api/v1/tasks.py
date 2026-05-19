@@ -21,6 +21,8 @@ from app.infra.rate_limiter import limiter,SIXTY_PER_MINUTE
 
 from app.services.task_service import TaskNotFound
 
+from app.api.errors import NOT_FOUND , UNAUTHORIZED
+
 
 router = APIRouter(prefix="/workspaces", tags=["tasks"])
 
@@ -86,6 +88,7 @@ def _error(*,status_code:int,code:str,detail:str):
     "/{workspace_id}/tasks",
     response_model=TaskResponse,
     status_code=status.HTTP_201_CREATED,
+    responses={**NOT_FOUND,**UNAUTHORIZED}
 )
 @limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def create_task(
@@ -115,6 +118,7 @@ async def create_task(
     "/{workspace_id}/tasks",
     response_model=list[TaskResponse],
     status_code=status.HTTP_200_OK,
+    responses={**UNAUTHORIZED, **NOT_FOUND}
 )
 @limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def list_tasks(
@@ -139,7 +143,8 @@ async def list_tasks(
 @router.patch(
     "/{workspace_id}/tasks/{task_id}",
     status_code=status.HTTP_200_OK,
-    response_model=TaskResponse
+    response_model=TaskResponse,
+    responses={**UNAUTHORIZED,**NOT_FOUND}
 )
 @limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def update_task(
@@ -179,6 +184,7 @@ async def update_task(
 @router.delete(
     "/{workspace_id}/tasks/{task_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={**UNAUTHORIZED,**NOT_FOUND}
 )
 @limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def delete_task(

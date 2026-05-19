@@ -17,6 +17,11 @@ from app.services import  workspace_service
 from app.services.workspace_service import NotAMember
 
 
+from fastapi.security import HTTPBearer , HTTPAuthorizationCredentials 
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
 def _unauthorized() -> HTTPException :
     return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -25,24 +30,16 @@ def _unauthorized() -> HTTPException :
     )
 
 async def get_current_user(
-        request : Request,
-        session :AsyncSession =Depends( get_db),
-
+        creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+        session: AsyncSession = Depends(get_db),
 ) -> User:
-    header = request.headers.get("Authorization")
-
-    if header is None :
+    if creds is None or not creds.credentials:
         raise _unauthorized()
-    scheme, _ , token = header.partition(" ")
 
-    if scheme.lower() != "bearer" or not token:
-        raise _unauthorized()
-    
     try:
-        claims = decode_token(token=token)
+        claims = decode_token(token=creds.credentials)
     except InvalidToken:
         raise _unauthorized()
-    
     user_id = claims.get("sub")
     if not user_id:
         raise _unauthorized()

@@ -15,6 +15,7 @@ from app.services.workspace_service import UserNotFound,AlreadyMember,CannotRemo
 
 from app.infra.rate_limiter import limiter,SIXTY_PER_MINUTE
 
+from app.api.errors import UNAUTHORIZED,NOT_FOUND,BAD_REQUEST,CONFLICT
 
 from typing import Literal
 
@@ -149,7 +150,8 @@ def _decode_cursor(cursor:str)-> tuple[datetime,UUID]:
 @router.post(
     "",
     response_model=WorkspaceResponse,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    responses={**UNAUTHORIZED}
 )
 @limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def create_workspace(
@@ -169,7 +171,8 @@ async def create_workspace(
 @router.get(
     "",
     response_model=list[WorkspaceResponse],
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    responses={**UNAUTHORIZED},
 )
 @limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def list_workspaces(
@@ -184,7 +187,8 @@ async def list_workspaces(
 @router.post(
     "/{workspace_id}/members",
     response_model=MemberResponse,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    responses={**UNAUTHORIZED,**NOT_FOUND,**CONFLICT}
 )
 @limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def invite_member(
@@ -224,6 +228,7 @@ async def invite_member(
 @router.delete(
     "/{workspace_id}/members/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={**UNAUTHORIZED,**NOT_FOUND,**CONFLICT}
 )
 @limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def remove_member(
@@ -260,6 +265,8 @@ async def remove_member(
 @router.get(
     "/{workspace_id}/audit",
     response_model=AuditPage,
+    status_code=status.HTTP_200_OK,
+    responses={**UNAUTHORIZED,**NOT_FOUND,**BAD_REQUEST}
 )
 @limiter.limit(SIXTY_PER_MINUTE, key_func=_user_id_or_ip)
 async def list_audit(
@@ -309,6 +316,7 @@ async def list_audit(
     "/{workspace_id}/activity",
     response_model=ActivityPage,
     status_code=status.HTTP_200_OK,
+    responses={**UNAUTHORIZED,**NOT_FOUND,**BAD_REQUEST}
 )
 @limiter.limit(SIXTY_PER_MINUTE, key_func=_user_id_or_ip)
 async def list_activity(

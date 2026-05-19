@@ -12,6 +12,7 @@ from app.infra.models import TaskCommentModel
 from app.services import comment_service
 from app.services.comment_service import TaskNotFound , CommentNotFound, NotCommentAuthor
 from app.infra.rate_limiter import limiter, SIXTY_PER_MINUTE
+from app.api.errors import UNAUTHORIZED, BAD_REQUEST,FORBIDDEN,NOT_FOUND
 
 import base64
 
@@ -81,6 +82,7 @@ def _error(*, status_code: int, code: str, detail: str):
     "/{workspace_id}/tasks/{task_id}/comments",
     response_model=CommentResponse,
     status_code=status.HTTP_201_CREATED,
+    responses={**UNAUTHORIZED,**NOT_FOUND}
 )
 @limiter.limit(SIXTY_PER_MINUTE, key_func=_user_id_or_ip)
 async def create_comment(
@@ -118,6 +120,7 @@ async def create_comment(
     "/{workspace_id}/tasks/{task_id}/comments",
     response_model=CommentPage,
     status_code=status.HTTP_200_OK,
+    responses={**UNAUTHORIZED,**NOT_FOUND,**BAD_REQUEST}
 )
 @limiter.limit(SIXTY_PER_MINUTE, key_func=_user_id_or_ip)
 async def list_comments(
@@ -169,6 +172,7 @@ async def list_comments(
     "/{workspace_id}/tasks/{task_id}/comments/{comment_id}",
     response_model=CommentResponse,
     status_code=status.HTTP_200_OK,
+    responses={**UNAUTHORIZED,**FORBIDDEN,**NOT_FOUND}
 )
 @limiter.limit(SIXTY_PER_MINUTE, key_func=_user_id_or_ip)
 async def edit_comment(
@@ -210,6 +214,7 @@ async def edit_comment(
 @router.delete(
     "/{workspace_id}/tasks/{task_id}/comments/{comment_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={**UNAUTHORIZED,**FORBIDDEN,**NOT_FOUND}
 )
 @limiter.limit(SIXTY_PER_MINUTE, key_func=_user_id_or_ip)
 async def delete_comment(
