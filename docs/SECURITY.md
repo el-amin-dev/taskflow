@@ -90,7 +90,9 @@ The `code` set in use:
 Clients branch on `code`, never on prose. The doubled `detail` nesting
 is FastAPI's envelope wrapping ours — accepted deliberately (see
 [DECISIONS.md](./DECISIONS.md)); a custom exception handler can flatten
-it later if a consumer needs it.
+it later if a consumer needs it. The contract is itself
+regression-locked: `test_openapi_contract` fails if the documented
+error responses or the bearer scheme ever silently drift from reality.
 
 ---
 
@@ -116,6 +118,58 @@ rotating refresh tokens with theft detection.
 - **Logout** — revokes the refresh token; idempotent (re-logout or an
   unknown token still returns success; a real session death is
   audited).
+
+The full state machine — the happy path and both failure branches:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant API as TaskFlow API
+    participant RS as refresh_store<br/>(Redis)
+    participant AL as audit_log<br/>(Postgres)
+
+    Note over C,API: Login
+    C->>API: POST /v1/auth/login (email, password)
+    API->>RS: create token family
+    API-->>C: access (15m JWT) + refresh (opaque)
+
+    Note over C,API: Normal use
+    C->>API: request + Bearer access
+    API-->>C: 200 (until access expires)
+
+    Note over C,API: Refresh — happy path
+    C->>API: POST /v1/auth/refresh (refresh)
+    API->>RS: rotate(refresh)
+    RS-->>API: ok — old marked spent, new issued
+    API->>AL: auth.refreshed
+    API-->>C: new access + new refresh<br/>(role re-read here)
+
+    Note over C,API: Refresh — unknown / expired
+    C->>API: POST /v1/auth/refresh (bad token)
+    API->>RS: rotate(bad)
+    RS-->>API: NotFound
+    API-->>C: 401 invalid_token<br/>(identical to every other token failure)
+
+    Note over C,API: Refresh — replay of a spent token (theft)
+    C->>API: POST /v1/auth/refresh (already-spent)
+    API->>RS: rotate(spent)
+    RS-->>API: ReuseDetected (family_id, user_id)
+    API->>RS: kill entire family
+    API->>AL: auth.refresh_reuse_detected
+    API-->>C: 401 invalid_token<br/>(same bytes — no oracle)
+
+    Note over C,API: Logout (idempotent)
+    C->>API: POST /v1/auth/logout (refresh)
+    API->>RS: revoke
+    API->>AL: auth.logged_out (only if a live session died)
+    API-->>C: 204
+```
+
+The two failure branches return a **byte-identical** `401` — an
+attacker replaying a stolen token learns nothing different from one
+sending garbage. The difference is invisible to them and fully
+recorded for the operator.
 
 ---
 
