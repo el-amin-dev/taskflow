@@ -20,6 +20,8 @@ from app.infra import refresh_store
 
 from app.infra.repositories import audit_repo, user_repo
 
+from app.api.errors import UNAUTHORIZED, BAD_REQUEST
+
 router = APIRouter (prefix="/auth",tags=["auth"])
 
 class RegisterRequest (BaseModel):
@@ -84,7 +86,8 @@ _INVALID_REFRESH = "invalid or expired refresh token"
 @router.post(
     "/register",
     response_model=UserResponse,
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    responses={**BAD_REQUEST}
 )
 @limiter.limit("10/hour")
 async def register(
@@ -112,7 +115,8 @@ async def register(
 @router.post(
     "/login",
     response_model=TokenResponse,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    responses={**UNAUTHORIZED}
 )
 @limiter.limit("5/minute")
 async def login(
@@ -149,7 +153,8 @@ async def login(
 @router.get(
     "/me",
     response_model=UserResponse,
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    responses={**UNAUTHORIZED}
 )
 @limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def me (
@@ -162,7 +167,8 @@ async def me (
 
 @router.post(
     "/refresh",
-    response_model=TokenResponse
+    response_model=TokenResponse,
+    responses={**UNAUTHORIZED}
 )
 @limiter.limit(SIXTY_PER_MINUTE,key_func=_user_id_or_ip)
 async def refresh(
