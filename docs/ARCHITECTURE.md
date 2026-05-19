@@ -13,12 +13,25 @@ business types — has zero imports from FastAPI, SQLAlchemy, Redis, or
 any framework. You could delete the entire HTTP layer and the domain
 would still compile.
 
+```mermaid
+flowchart LR
+    api["api<br/><i>HTTP routes, schemas</i>"]
+    services["services<br/><i>business logic, transactions</i>"]
+    infra["infra<br/><i>DB, ORM, security, Redis</i>"]
+    domain["domain<br/><i>pure types — no framework</i>"]
+
+    api --> services
+    services --> domain
+    services --> infra
+    infra --> domain
+
+    style domain fill:#1f6f43,stroke:#0d3b24,color:#fff
+    style api fill:#23415e,stroke:#13283b,color:#fff
+    style services fill:#23415e,stroke:#13283b,color:#fff
+    style infra fill:#23415e,stroke:#13283b,color:#fff
 ```
-   api  ──▶  services  ──▶  domain
-    │            │            ▲
-    │            ▼            │
-    └────────▶  infra  ───────┘
-```
+
+Every arrow points toward `domain`. Nothing points away from it.
 
 - `api` depends on `services`
 - `services` depends on `domain` and `infra`
@@ -123,6 +136,42 @@ service-owned transaction. A failure rolls back both.
 
 ## Request lifecycle (example: post a comment)
 
+The diagram is the at-a-glance; the steps below are the detail. Both
+describe the same real path — every cross-cutting concern (rate limit,
+auth, the role gate, the transaction boundary) firing in order.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant RL as Rate limiter<br/>(slowapi)
+    participant Dep as require_workspace_role<br/>(bearer + role gate)
+    participant R as Route<br/>(api)
+    participant S as comment_service<br/>(services)
+    participant Repo as repos<br/>(infra)
+    participant DB as Postgres
+
+    C->>RL: POST /v1/workspaces/{ws}/tasks/{task}/comments
+    RL->>RL: per-key limit check
+    RL-->>C: 429 if exceeded
+    RL->>Dep: within limit
+    Dep->>Dep: decode bearer token
+    Dep-->>C: 401 if missing / invalid
+    Dep->>Dep: member of ws with allowed role?
+    Dep-->>C: 404 if not (no existence disclosure)
+    Dep->>R: (workspace, membership)
+    R->>R: Pydantic validates body (COMMENT_MAX_LENGTH)
+    R-->>C: 422 if invalid
+    R->>S: create_comment(...)
+    S->>S: task in this workspace?
+    S-->>C: 404 TaskNotFound if not
+    S->>Repo: comment_repo.create  (flush)
+    S->>Repo: audit_repo.record    (flush)
+    S->>DB: commit (comment + audit, atomic)
+    S->>R: comment model
+    R->>C: 201 CommentResponse
+```
+
 1. **`api`** — `POST /v1/workspaces/{ws}/tasks/{task}/comments`.
    `require_workspace_role({"admin","member","viewer"})` confirms the
    caller is in the workspace; Pydantic validates the body
@@ -150,11 +199,14 @@ At no point does the domain layer learn that HTTP or Postgres exists.
   [DEVELOPMENT.md](./DEVELOPMENT.md).
 - **Tests** — `backend/tests/` (pytest, async). Integration-first:
   they drive the real HTTP app against real Postgres + Redis in
-  Compose, asserting on security boundaries, not mocks. Suites:
-  `test_auth`, `test_workspaces`, `test_tasks`, `test_comments`,
-  `test_activity`, `test_audit`, `test_refresh_flow`,
-  `test_refresh_store`, `test_rate_limiter`, `test_rate_limits_applied`
-  — 93 tests.
+  Compose, asserting on security boundaries, not mocks. The OpenAPI
+  contract is itself regression-locked (`test_openapi_contract` — a
+  pure-spec suite that fails if the documented security scheme or
+  error responses ever silently drift). Suites: `test_auth`,
+  `test_workspaces`, `test_tasks`, `test_comments`, `test_activity`,
+  `test_audit`, `test_refresh_flow`, `test_refresh_store`,
+  `test_rate_limiter`, `test_rate_limits_applied`,
+  `test_openapi_contract` — 99 tests.
 
 ---
 
