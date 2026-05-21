@@ -40,3 +40,13 @@ npm run build
 You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+## Styling
+
+Mobile-first. Default utility classes target mobile; breakpoint prefixes (`sm:`, `md:`, `lg:`) scale up.
+
+```html
+<!-- mobile default, then desktop adjustments -->
+<div class="p-4 text-base md:p-8 md:text-lg">
+```
+
+Tailwind v4 is configured via `@import 'tailwindcss'` in `src/app.css`. No `tailwind.config.js` — theme tokens, if needed later, go in `app.css` under `@theme`.
