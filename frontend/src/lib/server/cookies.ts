@@ -1,13 +1,23 @@
 import type { Cookies } from '@sveltejs/kit';
 import type { components } from '$lib/api/types';
 
+// Parse a required positive-integer TTL from env. Fail-fast (12-factor §III):
+// a missing or non-numeric value crashes at module load, not on first request.
+function parseTtl(raw: unknown, name: string): number {
+	const n = Number(raw);
+	if (!Number.isInteger(n) || n <= 0) {
+		throw new Error(`${name} must be a positive integer (seconds). Got: ${String(raw)}`);
+	}
+	return n;
+}
+
 type TokenResponse = components['schemas']['TokenResponse'];
 
 const ACCESS_COOKIE = 'taskflow_access';
 const REFRESH_COOKIE = 'taskflow_refresh';
 
-const ACCESS_TTL_SECONDS = 60 * 15; // 15 min — matches backend JWT_ACCESS_TTL_MINUTES
-const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days — matches JWT_REFRESH_TTL_DAYS
+const ACCESS_TTL_SECONDS = parseTtl(import.meta.env.VITE_ACCESS_TTL_SECONDS, 'VITE_ACCESS_TTL_SECONDS');
+const REFRESH_TTL_SECONDS = parseTtl(import.meta.env.VITE_REFRESH_TTL_SECONDS, 'VITE_REFRESH_TTL_SECONDS');
 
 const COOKIE_OPTS = {
 	httpOnly: true,
