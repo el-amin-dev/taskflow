@@ -63,14 +63,16 @@
 	{:else}
 		<ul class="mt-6 flex flex-col gap-2">
 			{#each data.workspaces as ws (ws.id)}
-				<li class="flex items-center justify-between rounded-md border border-gray-200 bg-white px-4 py-3">
-					<div class="min-w-0">
-						<p class="truncate text-sm font-medium text-gray-900">{ws.name}</p>
-						<p class="text-xs text-gray-500">Created {new Date(ws.created_at).toLocaleDateString()}</p>
-					</div>
-					{#if ws.owner_id === data.user.id}
-						<span class="ml-3 shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">Owner</span>
-					{/if}
+				<li>
+					<a href="/workspaces/{ws.id}" class="flex items-center justify-between rounded-md border border-gray-200 bg-white px-4 py-3 hover:border-gray-400 hover:bg-gray-50">
+						<div class="min-w-0">
+							<p class="truncate text-sm font-medium text-gray-900">{ws.name}</p>
+							<p class="text-xs text-gray-500">Created {new Date(ws.created_at).toLocaleDateString()}</p>
+						</div>
+						{#if ws.owner_id === data.user.id}
+							<span class="ml-3 shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">Owner</span>
+						{/if}
+					</a>
 				</li>
 			{/each}
 		</ul>
