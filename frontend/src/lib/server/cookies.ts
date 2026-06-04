@@ -36,8 +36,8 @@ export function setAuthCookies(cookies: Cookies, tokens: TokenResponse): void {
 
 // Clear both cookies — called on logout and on failed refresh.
 export function clearAuthCookies(cookies: Cookies): void {
-	cookies.delete(ACCESS_COOKIE, { path: '/' });
-	cookies.delete(REFRESH_COOKIE, { path: '/' });
+		cookies.delete(ACCESS_COOKIE, COOKIE_OPTS);
+	cookies.delete(REFRESH_COOKIE, COOKIE_OPTS);
 }
 
 // Cookie-name accessors — so reading code (hooks.server.ts) doesn't hardcode
