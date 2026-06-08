@@ -1,7 +1,23 @@
 <script lang="ts">
-	let { data } = $props();
+	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
 
-	// Map status -> label + badge classes. Keeps the enum's presentation in one place.
+	let { data, form } = $props();
+
+	let showForm = $state(false);
+	let submitting = $state(false);
+
+	const handleCreate: SubmitFunction = () => {
+		submitting = true;
+		return async ({ result, update }) => {
+			submitting = false;
+			await update();
+			if (result.type === 'success') {
+				showForm = false;
+			}
+		};
+	};
+
 	const STATUS_META: Record<string, { label: string; classes: string }> = {
 		todo: { label: 'To do', classes: 'bg-gray-100 text-gray-700' },
 		in_progress: { label: 'In progress', classes: 'bg-blue-50 text-blue-700' },
@@ -30,13 +46,52 @@
 			<p class="mt-1 text-sm text-gray-600">It may not exist, or you may not have access to it.</p>
 		</div>
 	{:else}
-		<h1 class="mt-4 text-2xl font-semibold text-gray-900">Tasks</h1>
-		<p class="mt-2 text-sm text-gray-600">{data.workspace.name}</p>
+		<div class="mt-4 flex items-center justify-between">
+			<div>
+				<h1 class="text-2xl font-semibold text-gray-900">Tasks</h1>
+				<p class="mt-2 text-sm text-gray-600">{data.workspace.name}</p>
+			</div>
+			{#if !showForm}
+				<button onclick={() => (showForm = true)} class="shrink-0 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">New task</button>
+			{/if}
+		</div>
+
+		{#if showForm}
+			<form method="POST" action="?/create" use:enhance={handleCreate} class="mt-6 flex flex-col gap-3 rounded-md border border-gray-200 bg-white p-4">
+				<label class="flex flex-col gap-1">
+					<span class="text-sm font-medium text-gray-700">Title</span>
+					<input name="title" required value={form?.title ?? ''} placeholder="e.g. Write the report" class="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none" />
+				</label>
+				<label class="flex flex-col gap-1">
+					<span class="text-sm font-medium text-gray-700">Description <span class="text-gray-400">(optional)</span></span>
+					<textarea name="description" rows="2" value={form?.description ?? ''} class="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"></textarea>
+				</label>
+				<label class="flex flex-col gap-1">
+					<span class="text-sm font-medium text-gray-700">Status</span>
+					<select name="status" value={form?.status ?? 'todo'} class="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none">
+						<option value="todo">To do</option>
+						<option value="in_progress">In progress</option>
+						<option value="done">Done</option>
+					</select>
+				</label>
+
+				{#if form?.error}
+					<p class="text-sm text-red-700">{form.error}</p>
+				{/if}
+
+				<div class="flex gap-2">
+					<button type="submit" disabled={submitting} class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50">
+						{submitting ? 'Creating…' : 'Create task'}
+					</button>
+					<button type="button" onclick={() => (showForm = false)} class="rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">Cancel</button>
+				</div>
+			</form>
+		{/if}
 
 		{#if data.tasks.length === 0}
 			<div class="mt-6 rounded-md border border-dashed border-gray-300 px-4 py-10 text-center">
 				<p class="text-sm font-medium text-gray-900">No tasks yet</p>
-				<p class="mt-1 text-sm text-gray-600">Create one to get started.</p>
+				<p class="mt-1 text-sm text-gray-600">Create one with the button above to get started.</p>
 			</div>
 		{:else}
 			<ul class="mt-6 flex flex-col gap-2">
