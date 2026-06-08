@@ -49,7 +49,12 @@
 					<dt class="text-gray-500">Workspace ID</dt>
 					<dd class="font-mono text-xs text-gray-600">{data.workspace.id}</dd>
 				</div>
-			</dl>
+                     </dl>
+
+			<a href="/workspaces/{data.workspace.id}/tasks" class="mt-6 flex items-center justify-between rounded-md border border-gray-200 bg-white px-4 py-3 hover:border-gray-400 hover:bg-gray-50">
+				<span class="text-sm font-medium text-gray-900">View tasks</span>
+				<span class="text-gray-400">&rarr;</span>
+			</a>
 
 			<div class="mt-8">
 				<div class="flex items-center justify-between">
