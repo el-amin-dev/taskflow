@@ -45,6 +45,25 @@
 
 		<h2 class="mt-8 text-lg font-semibold text-gray-900">Comments</h2>
 		<p class="mt-2 text-sm text-gray-500">{data.comments.length} comment{data.comments.length === 1 ? '' : 's'}</p>
-		<!-- comments list + add form arrive in the next commits -->
+		<h2 class="mt-8 text-lg font-semibold text-gray-900">Comments</h2>
+
+		{#if data.comments.length === 0}
+			<p class="mt-3 text-sm text-gray-500">No comments yet.</p>
+		{:else}
+			<ul class="mt-3 flex flex-col gap-3">
+				{#each data.comments as comment (comment.id)}
+					<li class="rounded-md border border-gray-200 bg-white px-4 py-3">
+						<div class="flex items-center justify-between">
+							<span class="text-xs font-medium text-gray-700">
+								{comment.author_id === data.user.id ? 'You' : 'A member'}
+							</span>
+							<span class="text-xs text-gray-400">{new Date(comment.created_at).toLocaleString()}</span>
+						</div>
+						<p class="mt-1 whitespace-pre-wrap text-sm text-gray-900">{comment.body}</p>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+		<!-- add-comment form arrives in the next commit -->
 	{/if}
 </section>
