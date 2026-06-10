@@ -1,5 +1,19 @@
 <script lang="ts">
-	let { data } = $props();
+	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
+
+	let { data, form } = $props();
+
+	let submitting = $state(false);
+
+	const handleComment: SubmitFunction = () => {
+		submitting = true;
+		return async ({ result, update }) => {
+			submitting = false;
+			// Reset the textarea only on success; keep it on error to repopulate.
+			await update({ reset: result.type === 'success' });
+		};
+	};
 
 	const STATUS_META: Record<string, { label: string; classes: string }> = {
 		todo: { label: 'To do', classes: 'bg-gray-100 text-gray-700' },
@@ -46,7 +60,15 @@
 		<h2 class="mt-8 text-lg font-semibold text-gray-900">Comments</h2>
 		<p class="mt-2 text-sm text-gray-500">{data.comments.length} comment{data.comments.length === 1 ? '' : 's'}</p>
 		<h2 class="mt-8 text-lg font-semibold text-gray-900">Comments</h2>
-
+			<form method="POST" action="?/addComment" use:enhance={handleComment} class="mt-3 flex flex-col gap-2">
+			<textarea name="body" required rows="2" placeholder="Add a comment…" class="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none">{form?.body ?? ''}</textarea>
+			{#if form?.commentError}
+				<p class="text-sm text-red-700">{form.commentError}</p>
+			{/if}
+			<button type="submit" disabled={submitting} class="self-start rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50">
+				{submitting ? 'Posting…' : 'Post comment'}
+			</button>
+		</form>
 		{#if data.comments.length === 0}
 			<p class="mt-3 text-sm text-gray-500">No comments yet.</p>
 		{:else}
@@ -64,6 +86,6 @@
 				{/each}
 			</ul>
 		{/if}
-		<!-- add-comment form arrives in the next commit -->
+		<!-- -->
 	{/if}
 </section>

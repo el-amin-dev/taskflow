@@ -4,7 +4,9 @@ import * as workspaces from '$lib/api/workspaces';
 import * as tasks from '$lib/api/tasks';
 import * as comments from '$lib/api/comments';
 import { ApiError } from '$lib/api/errors';
-import type { PageServerLoad } from './$types';
+import type { PageServerLoad, Actions } from './$types';
+import { fail } from '@sveltejs/kit';
+
 
 // Task detail + comments. No single-workspace or single-task GET exists, so we
 // resolve both by listing and filtering (workspace -> its tasks -> the task),
@@ -38,5 +40,33 @@ export const load: PageServerLoad = async (event) => {
 			console.error('task detail load: unexpected error', cause);
 		}
 		return { user, workspace: null, task: null, comments: [], loadError: true, notFound: false };
+	}
+};
+
+export const actions: Actions = {
+	// Add a comment to this task. body required.
+	addComment: async (event) => {
+		requireAuth(event);
+		const accessToken = event.cookies.get(cookieNames.access);
+		if (!accessToken) {
+			return fail(401, { commentError: 'Your session expired. Please log in again.', body: '' });
+		}
+
+		const data = await event.request.formData();
+		const body = String(data.get('body') ?? '').trim();
+
+		if (!body) {
+			return fail(400, { commentError: 'Comment cannot be empty.', body });
+		}
+
+		try {
+			await comments.create(accessToken, event.params.id, event.params.taskId, { body });
+			return { commentAdded: true };
+		} catch (cause) {
+			if (!(cause instanceof ApiError)) {
+				console.error('add comment: unexpected error', cause);
+			}
+			return fail(400, { commentError: 'Could not add the comment. Please try again.', body });
+		}
 	}
 };
