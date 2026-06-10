@@ -17,6 +17,15 @@
 			}
 		};
 	};
+	const handleDelete: SubmitFunction = ({ cancel }) => {
+		if (!confirm('Delete this task? This cannot be undone.')) {
+			cancel();
+			return;
+		}
+		return async ({ update }) => {
+			await update();
+		};
+	};
 
 	const STATUS_META: Record<string, { label: string; classes: string }> = {
 		todo: { label: 'To do', classes: 'bg-gray-100 text-gray-700' },
@@ -104,9 +113,27 @@
 									<p class="mt-0.5 line-clamp-2 text-sm text-gray-600">{task.description}</p>
 								{/if}
 							</div>
-							<span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium {statusMeta(task.status).classes}">
-								{statusMeta(task.status).label}
-							</span>
+							<div class="flex shrink-0 items-center gap-2">
+								<form method="POST" action="?/updateStatus" use:enhance>
+									<input type="hidden" name="task_id" value={task.id} />
+									<select
+										name="status"
+										value={task.status}
+										onchange={(e) => e.currentTarget.form?.requestSubmit()}
+										class="rounded-full border-0 px-2 py-0.5 text-xs font-medium {statusMeta(task.status).classes} focus:outline-none focus:ring-1 focus:ring-gray-400"
+									>
+										<option value="todo">To do</option>
+										<option value="in_progress">In progress</option>
+										<option value="done">Done</option>
+									</select>
+								</form>
+								<form method="POST" action="?/deleteTask" use:enhance={handleDelete}>
+									<input type="hidden" name="task_id" value={task.id} />
+									<button type="submit" aria-label="Delete task" class="rounded-md px-2 py-1 text-sm text-gray-400 hover:bg-red-50 hover:text-red-600">
+										&times;
+									</button>
+								</form>
+							</div>
 						</div>
 					</li>
 				{/each}

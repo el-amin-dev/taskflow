@@ -35,7 +35,6 @@ export const load: PageServerLoad = async (event) => {
 const VALID_STATUSES = ['todo', 'in_progress', 'done'] as const;
 
 export const actions: Actions = {
-	// Create a task in this workspace. title required; status defaults to todo.
 	create: async (event) => {
 		requireAuth(event);
 		const accessToken = event.cookies.get(cookieNames.access);
@@ -67,6 +66,58 @@ export const actions: Actions = {
 				console.error('task create: unexpected error', cause);
 			}
 			return fail(400, { error: 'Could not create the task. Please try again.', title, description, status });
+		}
+	},
+
+	updateStatus: async (event) => {
+		requireAuth(event);
+		const accessToken = event.cookies.get(cookieNames.access);
+		if (!accessToken) {
+			return fail(401, { statusError: 'Your session expired. Please log in again.' });
+		}
+
+		const data = await event.request.formData();
+		const taskId = String(data.get('task_id') ?? '');
+		const status = String(data.get('status') ?? '');
+
+		if (!taskId || !VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
+			return fail(400, { statusError: 'Invalid status update.' });
+		}
+
+		try {
+			await tasks.update(accessToken, event.params.id, taskId, {
+				status: status as (typeof VALID_STATUSES)[number]
+			});
+			return { statusUpdated: true };
+		} catch (cause) {
+			if (!(cause instanceof ApiError)) {
+				console.error('task status update: unexpected error', cause);
+			}
+			return fail(400, { statusError: 'Could not update the status.' });
+		}
+	},
+
+	deleteTask: async (event) => {
+		requireAuth(event);
+		const accessToken = event.cookies.get(cookieNames.access);
+		if (!accessToken) {
+			return fail(401, { statusError: 'Your session expired. Please log in again.' });
+		}
+
+		const data = await event.request.formData();
+		const taskId = String(data.get('task_id') ?? '');
+		if (!taskId) {
+			return fail(400, { statusError: 'Invalid delete request.' });
+		}
+
+		try {
+			await tasks.remove(accessToken, event.params.id, taskId);
+			return { deleted: true };
+		} catch (cause) {
+			if (!(cause instanceof ApiError)) {
+				console.error('task delete: unexpected error', cause);
+			}
+			return fail(400, { statusError: 'Could not delete the task.' });
 		}
 	}
 };
