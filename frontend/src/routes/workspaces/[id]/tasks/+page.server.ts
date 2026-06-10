@@ -95,5 +95,29 @@ export const actions: Actions = {
 			}
 			return fail(400, { statusError: 'Could not update the status.' });
 		}
+	},
+
+	deleteTask: async (event) => {
+		requireAuth(event);
+		const accessToken = event.cookies.get(cookieNames.access);
+		if (!accessToken) {
+			return fail(401, { statusError: 'Your session expired. Please log in again.' });
+		}
+
+		const data = await event.request.formData();
+		const taskId = String(data.get('task_id') ?? '');
+		if (!taskId) {
+			return fail(400, { statusError: 'Invalid delete request.' });
+		}
+
+		try {
+			await tasks.remove(accessToken, event.params.id, taskId);
+			return { deleted: true };
+		} catch (cause) {
+			if (!(cause instanceof ApiError)) {
+				console.error('task delete: unexpected error', cause);
+			}
+			return fail(400, { statusError: 'Could not delete the task.' });
+		}
 	}
 };
