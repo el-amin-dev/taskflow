@@ -108,7 +108,7 @@
 					<li class="rounded-md border border-gray-200 bg-white px-4 py-3">
 						<div class="flex items-start justify-between gap-3">
 							<div class="min-w-0">
-								<p class="truncate text-sm font-medium text-gray-900">{task.title}</p>
+								<a href="/workspaces/{data.workspace.id}/tasks/{task.id}" class="truncate block text-sm font-medium text-gray-900 hover:text-gray-600 hover:underline">{task.title}</a>
 								{#if task.description}
 									<p class="mt-0.5 line-clamp-2 text-sm text-gray-600">{task.description}</p>
 								{/if}
