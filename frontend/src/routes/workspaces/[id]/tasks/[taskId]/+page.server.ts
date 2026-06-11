@@ -96,5 +96,58 @@ export const actions: Actions = {
 			}
 			return fail(400, { editError: 'Could not update the task. Please try again.', editTitle: title, editDescription: description });
 		}
+	},
+
+	editComment: async (event) => {
+		requireAuth(event);
+		const accessToken = event.cookies.get(cookieNames.access);
+		if (!accessToken) {
+			return fail(401, { commentEditError: 'Your session expired. Please log in again.' });
+		}
+
+		const data = await event.request.formData();
+		const commentId = String(data.get('comment_id') ?? '');
+		const body = String(data.get('body') ?? '').trim();
+
+		if (!commentId) {
+			return fail(400, { commentEditError: 'Invalid edit request.' });
+		}
+		if (!body) {
+			return fail(400, { commentEditError: 'Comment cannot be empty.', editingCommentId: commentId });
+		}
+
+		try {
+			await comments.update(accessToken, event.params.id, event.params.taskId, commentId, { body });
+			return { commentEdited: true };
+		} catch (cause) {
+			if (!(cause instanceof ApiError)) {
+				console.error('edit comment: unexpected error', cause);
+			}
+			return fail(400, { commentEditError: 'Could not edit the comment.', editingCommentId: commentId });
+		}
+	},
+
+	deleteComment: async (event) => {
+		requireAuth(event);
+		const accessToken = event.cookies.get(cookieNames.access);
+		if (!accessToken) {
+			return fail(401, { commentDeleteError: 'Your session expired. Please log in again.' });
+		}
+
+		const data = await event.request.formData();
+		const commentId = String(data.get('comment_id') ?? '');
+		if (!commentId) {
+			return fail(400, { commentDeleteError: 'Invalid delete request.' });
+		}
+
+		try {
+			await comments.remove(accessToken, event.params.id, event.params.taskId, commentId);
+			return { commentDeleted: true };
+		} catch (cause) {
+			if (!(cause instanceof ApiError)) {
+				console.error('delete comment: unexpected error', cause);
+			}
+			return fail(400, { commentDeleteError: 'Could not delete the comment.' });
+		}
 	}
 };
