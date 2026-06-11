@@ -31,6 +31,31 @@
 		};
 	};
 
+	const handleCommentDelete: SubmitFunction = ({ cancel }) => {
+		if (!confirm('Delete this comment? This cannot be undone.')) {
+			cancel();
+			return;
+		}
+		return async ({ update }) => {
+			await update();
+		};
+	};
+
+	let editingCommentId = $state<string | null>(null);
+	let savingComment = $state(false);
+
+	const handleCommentEdit: SubmitFunction = () => {
+		savingComment = true;
+		return async ({ result, update }) => {
+			savingComment = false;
+			await update();
+			if (result.type === 'success') {
+				editingCommentId = null;
+			}
+		};
+	};
+
+
 
 	const STATUS_META: Record<string, { label: string; classes: string }> = {
 		todo: { label: 'To do', classes: 'bg-gray-100 text-gray-700' },
@@ -115,16 +140,39 @@
 		{:else}
 			<ul class="mt-3 flex flex-col gap-3">
 				{#each data.comments as comment (comment.id)}
-					<li class="rounded-md border border-gray-200 bg-white px-4 py-3">
-						<div class="flex items-center justify-between">
-							<span class="text-xs font-medium text-gray-700">
-								{comment.author_id === data.user.id ? 'You' : 'A member'}
-							</span>
-							<span class="text-xs text-gray-400">{new Date(comment.created_at).toLocaleString()}</span>
-						</div>
-						<p class="mt-1 whitespace-pre-wrap text-sm text-gray-900">{comment.body}</p>
-					</li>
-				{/each}
+						<li class="rounded-md border border-gray-200 bg-white px-4 py-3">
+							<div class="flex items-center justify-between">
+								<span class="text-xs font-medium text-gray-700">
+									{comment.author_id === data.user.id ? 'You' : 'A member'}
+								</span>
+								<div class="flex items-center gap-2">
+									<span class="text-xs text-gray-400">{new Date(comment.created_at).toLocaleString()}</span>
+									{#if comment.author_id === data.user.id && editingCommentId !== comment.id}
+										<button onclick={() => (editingCommentId = comment.id)} class="rounded px-1.5 py-0.5 text-xs text-gray-500 hover:bg-gray-100">Edit</button>
+										<form method="POST" action="?/deleteComment" use:enhance={handleCommentDelete}>
+											<input type="hidden" name="comment_id" value={comment.id} />
+											<button type="submit" aria-label="Delete comment" class="rounded px-1.5 py-0.5 text-xs text-gray-400 hover:bg-red-50 hover:text-red-600">Delete</button>
+										</form>
+									{/if}
+								</div>
+							</div>
+
+							{#if editingCommentId === comment.id}
+								<form method="POST" action="?/editComment" use:enhance={handleCommentEdit} class="mt-2 flex flex-col gap-2">
+									<input type="hidden" name="comment_id" value={comment.id} />
+									<textarea name="body" required rows="2" class="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none">{comment.body}</textarea>
+									<div class="flex gap-2">
+										<button type="submit" disabled={savingComment} class="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50">
+											{savingComment ? 'Saving…' : 'Save'}
+										</button>
+										<button type="button" onclick={() => (editingCommentId = null)} class="rounded-md px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100">Cancel</button>
+									</div>
+								</form>
+							{:else}
+								<p class="mt-1 whitespace-pre-wrap text-sm text-gray-900">{comment.body}</p>
+							{/if}
+						</li>
+					{/each}
 			</ul>
 		{/if}
 		<!-- -->
