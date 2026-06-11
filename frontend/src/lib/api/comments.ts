@@ -31,3 +31,39 @@ export function create(
 	});
 }
 
+// PATCH /v1/workspaces/{id}/tasks/{taskId}/comments/{commentId} — edit a
+// comment's body. Author-only on the backend. Reuses CommentCreate ({ body }).
+// Returns the updated comment.
+export function update(
+	accessToken: string,
+	workspaceId: string,
+	taskId: string,
+	commentId: string,
+	body: CommentCreate
+): Promise<CommentResponse> {
+	return request<CommentResponse>(
+		`/v1/workspaces/${workspaceId}/tasks/${taskId}/comments/${commentId}`,
+		{
+			method: 'PATCH',
+			body,
+			headers: { Authorization: `Bearer ${accessToken}` }
+		}
+	);
+}
+
+// DELETE /v1/workspaces/{id}/tasks/{taskId}/comments/{commentId} — remove a
+// comment. Author-only on the backend. Returns 204.
+export function remove(
+	accessToken: string,
+	workspaceId: string,
+	taskId: string,
+	commentId: string
+): Promise<void> {
+	return request<void>(
+		`/v1/workspaces/${workspaceId}/tasks/${taskId}/comments/${commentId}`,
+		{
+			method: 'DELETE',
+			headers: { Authorization: `Bearer ${accessToken}` }
+		}
+	);
+}
