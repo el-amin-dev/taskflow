@@ -4,6 +4,8 @@
 
 	let { data, form } = $props();
 
+	let formAny = $derived(form as Record<string, string> | null);
+
 	let submitting = $state(false);
 
 	const handleComment: SubmitFunction = () => {
@@ -14,6 +16,21 @@
 			await update({ reset: result.type === 'success' });
 		};
 	};
+	
+	let editing = $state(false);
+	let savingEdit = $state(false);
+
+	const handleEdit: SubmitFunction = () => {
+		savingEdit = true;
+		return async ({ result, update }) => {
+			savingEdit = false;
+			await update();
+			if (result.type === 'success') {
+				editing = false;
+			}
+		};
+	};
+
 
 	const STATUS_META: Record<string, { label: string; classes: string }> = {
 		todo: { label: 'To do', classes: 'bg-gray-100 text-gray-700' },
@@ -42,24 +59,48 @@
 			<p class="mt-1 text-sm text-gray-600">It may not exist, or you may not have access to it.</p>
 		</div>
 	{:else}
-		<div class="mt-4 flex items-start justify-between gap-3">
-			<h1 class="text-2xl font-semibold text-gray-900">{data.task.title}</h1>
-			<span class="mt-1 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium {statusMeta(data.task.status).classes}">
-				{statusMeta(data.task.status).label}
-			</span>
-		</div>
-
-		{#if data.task.description}
-			<p class="mt-3 text-sm text-gray-700">{data.task.description}</p>
+		
+		{#if editing}
+			<form method="POST" action="?/updateTask" use:enhance={handleEdit} class="mt-4 flex flex-col gap-3">
+				<label class="flex flex-col gap-1">
+					<span class="text-sm font-medium text-gray-700">Title</span>
+				<input name="title" required value={formAny?.editTitle ?? data.task.title} class="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none" />
+				</label>
+				<label class="flex flex-col gap-1">
+					<span class="text-sm font-medium text-gray-700">Description <span class="text-gray-400">(optional)</span></span>
+				<textarea name="description" rows="3" class="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none">{formAny?.editDescription ?? data.task.description ?? ''}</textarea>
+				</label>
+				{#if form?.editError}
+					<p class="text-sm text-red-700">{form.editError}</p>
+				{/if}
+				<div class="flex gap-2">
+					<button type="submit" disabled={savingEdit} class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50">
+						{savingEdit ? 'Saving…' : 'Save'}
+					</button>
+					<button type="button" onclick={() => (editing = false)} class="rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">Cancel</button>
+				</div>
+			</form>
 		{:else}
-			<p class="mt-3 text-sm text-gray-400">No description.</p>
+			<div class="mt-4 flex items-start justify-between gap-3">
+				<h1 class="text-2xl font-semibold text-gray-900">{data.task.title}</h1>
+				<div class="flex shrink-0 items-center gap-2">
+					<span class="mt-1 rounded-full px-2 py-0.5 text-xs font-medium {statusMeta(data.task.status).classes}">
+						{statusMeta(data.task.status).label}
+					</span>
+					<button onclick={() => (editing = true)} class="mt-0.5 rounded-md px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100">Edit</button>
+				</div>
+			</div>
+
+			{#if data.task.description}
+				<p class="mt-3 text-sm text-gray-700">{data.task.description}</p>
+			{:else}
+				<p class="mt-3 text-sm text-gray-400">No description.</p>
+			{/if}
+
+			<p class="mt-2 text-xs text-gray-500">Created {new Date(data.task.created_at).toLocaleDateString()}</p>
 		{/if}
 
-		<p class="mt-2 text-xs text-gray-500">Created {new Date(data.task.created_at).toLocaleDateString()}</p>
-
-		<h2 class="mt-8 text-lg font-semibold text-gray-900">Comments</h2>
-		<p class="mt-2 text-sm text-gray-500">{data.comments.length} comment{data.comments.length === 1 ? '' : 's'}</p>
-		<h2 class="mt-8 text-lg font-semibold text-gray-900">Comments</h2>
+			<h2 class="mt-8 text-lg font-semibold text-gray-900">Comments</h2>
 			<form method="POST" action="?/addComment" use:enhance={handleComment} class="mt-3 flex flex-col gap-2">
 			<textarea name="body" required rows="2" placeholder="Add a comment…" class="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none">{form?.body ?? ''}</textarea>
 			{#if form?.commentError}

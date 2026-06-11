@@ -68,5 +68,33 @@ export const actions: Actions = {
 			}
 			return fail(400, { commentError: 'Could not add the comment. Please try again.', body });
 		}
+	},
+		updateTask: async (event) => {
+		requireAuth(event);
+		const accessToken = event.cookies.get(cookieNames.access);
+		if (!accessToken) {
+			return fail(401, { editError: 'Your session expired. Please log in again.' });
+		}
+
+		const data = await event.request.formData();
+		const title = String(data.get('title') ?? '').trim();
+		const description = String(data.get('description') ?? '').trim();
+
+		if (!title) {
+			return fail(400, { editError: 'Title is required.', editTitle: title, editDescription: description });
+		}
+
+		try {
+			await tasks.update(accessToken, event.params.id, event.params.taskId, {
+				title,
+				description: description || null
+			});
+			return { taskUpdated: true };
+		} catch (cause) {
+			if (!(cause instanceof ApiError)) {
+				console.error('update task: unexpected error', cause);
+			}
+			return fail(400, { editError: 'Could not update the task. Please try again.', editTitle: title, editDescription: description });
+		}
 	}
 };
