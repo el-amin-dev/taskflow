@@ -31,6 +31,16 @@
 		};
 	};
 
+	const handleCommentDelete: SubmitFunction = ({ cancel }) => {
+		if (!confirm('Delete this comment? This cannot be undone.')) {
+			cancel();
+			return;
+		}
+		return async ({ update }) => {
+			await update();
+		};
+	};
+
 
 	const STATUS_META: Record<string, { label: string; classes: string }> = {
 		todo: { label: 'To do', classes: 'bg-gray-100 text-gray-700' },
@@ -115,16 +125,24 @@
 		{:else}
 			<ul class="mt-3 flex flex-col gap-3">
 				{#each data.comments as comment (comment.id)}
-					<li class="rounded-md border border-gray-200 bg-white px-4 py-3">
-						<div class="flex items-center justify-between">
-							<span class="text-xs font-medium text-gray-700">
-								{comment.author_id === data.user.id ? 'You' : 'A member'}
-							</span>
-							<span class="text-xs text-gray-400">{new Date(comment.created_at).toLocaleString()}</span>
-						</div>
-						<p class="mt-1 whitespace-pre-wrap text-sm text-gray-900">{comment.body}</p>
-					</li>
-				{/each}
+						<li class="rounded-md border border-gray-200 bg-white px-4 py-3">
+							<div class="flex items-center justify-between">
+								<span class="text-xs font-medium text-gray-700">
+									{comment.author_id === data.user.id ? 'You' : 'A member'}
+								</span>
+								<div class="flex items-center gap-2">
+									<span class="text-xs text-gray-400">{new Date(comment.created_at).toLocaleString()}</span>
+									{#if comment.author_id === data.user.id}
+										<form method="POST" action="?/deleteComment" use:enhance={handleCommentDelete}>
+											<input type="hidden" name="comment_id" value={comment.id} />
+											<button type="submit" aria-label="Delete comment" class="rounded px-1.5 py-0.5 text-xs text-gray-400 hover:bg-red-50 hover:text-red-600">Delete</button>
+										</form>
+									{/if}
+								</div>
+							</div>
+							<p class="mt-1 whitespace-pre-wrap text-sm text-gray-900">{comment.body}</p>
+						</li>
+					{/each}
 			</ul>
 		{/if}
 		<!-- -->
