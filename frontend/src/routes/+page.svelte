@@ -1,3 +1,4 @@
+<svelte:head><title>TaskFlow — self-hosted team task manager</title></svelte:head>
 <section class="py-8 md:py-16">
 	<div class="max-w-2xl">
 		<h1 class="text-3xl font-bold tracking-tight text-gray-900 md:text-5xl">Task management your team will actually use.</h1>
