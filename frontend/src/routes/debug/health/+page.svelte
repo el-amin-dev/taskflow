@@ -3,7 +3,7 @@
 
 	let { data }: { data: PageServerData } = $props();
 </script>
-
+<svelte:head><title>Health — TaskFlow</title></svelte:head>
 <h1 class="text-2xl font-semibold">Backend health</h1>
 
 {#if data.ok}

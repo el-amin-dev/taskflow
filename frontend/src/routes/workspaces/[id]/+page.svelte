@@ -19,6 +19,8 @@
 	};
 </script>
 
+<svelte:head><title>{data.workspace?.name ?? 'Workspace'} — TaskFlow</title></svelte:head>
+
 <section class="mx-auto max-w-2xl py-6 md:py-10">
 	<a href="/workspaces" class="text-sm text-gray-600 hover:text-gray-900">&larr; Back to workspaces</a>
 

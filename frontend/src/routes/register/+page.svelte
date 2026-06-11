@@ -47,6 +47,8 @@
 	}
 </script>
 
+<svelte:head><title>Create account — TaskFlow</title></svelte:head>
+
 <section class="mx-auto max-w-sm py-8 md:py-12">
 	<h1 class="text-2xl font-semibold text-gray-900">Create your account</h1>
 	<p class="mt-2 text-sm text-gray-600">Start managing your team's work.</p>

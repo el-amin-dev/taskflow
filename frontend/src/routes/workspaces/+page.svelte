@@ -20,6 +20,8 @@
 	};
 </script>
 
+<svelte:head><title>Workspaces — TaskFlow</title></svelte:head>
+
 <section class="mx-auto max-w-2xl py-6 md:py-10">
 	<div class="flex items-center justify-between">
 		<div>

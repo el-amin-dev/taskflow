@@ -48,6 +48,8 @@
 	}
 </script>
 
+<svelte:head><title>Sign in — TaskFlow</title></svelte:head>
+
 <section class="mx-auto max-w-sm py-8 md:py-12">
 	<h1 class="text-2xl font-semibold text-gray-900">Log in</h1>
 	<p class="mt-2 text-sm text-gray-600">Welcome back.</p>

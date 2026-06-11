@@ -19,6 +19,7 @@
 </script>
 
 <svelte:head>
+	<title>TaskFlow</title>
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
