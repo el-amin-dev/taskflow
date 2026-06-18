@@ -24,8 +24,9 @@ boundaries — not just the happy paths.
 > - **Phase C — Cloud / Ops** · 🚧 *planned* · Kubernetes · Terraform ·
 >   AWS · CI/CD · Prometheus + Grafana · tracing
 
----
+![TaskFlow task board](./docs/screenshots/tasks-board.png)
 
+---
 ## Repository layout
 
 This is a monorepo. Each top-level component is independently
@@ -145,6 +146,56 @@ Interactive API docs (served live by the backend):
 
 Full route inventory and the uniform error contract:
 [`docs/API.md`](./docs/API.md).
+
+---
+
+## Web UI
+
+A SvelteKit single-page app built entirely against the backend's OpenAPI
+contract — full CRUD across workspaces, tasks, and comments, behind
+httpOnly-cookie auth with silent token refresh, responsive from phone to
+desktop.
+
+Tokens never touch client JavaScript: the SvelteKit server sets them as
+httpOnly cookies and proxies the API, so an XSS bug can't exfiltrate a
+session. Every page is guarded server-side (deny-by-default), and the UI
+honours the same non-disclosure rules as the API — a resource you can't
+access simply "doesn't exist."
+
+**The permission model, made visible.** The same comment, viewed by its
+author and by another member — the author gets edit/delete controls and a
+"You" label; everyone else sees "A member" and no controls. The UI enforces
+what the API enforces.
+
+| Author's view | Another member's view |
+|---|---|
+| ![Comment as its author](./docs/screenshots/task-detail-amina.png) | ![Same comment, another member](./docs/screenshots/task-detail-mohammed.png) |
+
+**Workspaces** — each a tenant; the list shows your role at a glance.
+
+![Workspaces](./docs/screenshots/workspaces.png)
+
+**Sign-in** and **mobile** — clean auth, and the same board on a phone:
+
+| Sign in | Mobile |
+|---|---|
+| ![Login](./docs/screenshots/login.png) | <img src="./docs/screenshots/mobile-tasks.png" width="260" alt="Tasks on mobile" /> |
+
+### Run the UI
+
+> The Compose stack (`docker compose up`) runs the **backend** only. The
+> web UI runs separately in dev:
+
+```bash
+cd frontend
+cp .env.example .env        # sets VITE_API_URL to the local backend
+npm install
+npm run dev                 # http://localhost:5173
+```
+
+It expects the backend from the [Quickstart](#quickstart-5-minutes) to be
+running. Build details and the auth/cookie design:
+[`frontend/AUTH.md`](./frontend/AUTH.md).
 
 ---
 
