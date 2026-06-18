@@ -17,8 +17,10 @@ boundaries — not just the happy paths.
 >   tasks, comments, activity feed, append-only audit log, refresh
 >   tokens with theft detection, rate limiting — 93 integration tests
 >   against real Postgres + Redis
-> - **Phase B — Frontend + CLI** · 🚧 *planned* · SvelteKit web UI ·
->   Typer + httpx Python CLI
+> - **Phase B — Frontend** · ✅ **complete** · SvelteKit web UI · full
+>   CRUD across workspaces, tasks, and comments · httpOnly-cookie auth
+>   with silent refresh · mobile-responsive
+> - **Phase B — CLI** · 🚧 *planned* · Typer + httpx Python CLI
 > - **Phase C — Cloud / Ops** · 🚧 *planned* · Kubernetes · Terraform ·
 >   AWS · CI/CD · Prometheus + Grafana · tracing
 
@@ -32,14 +34,13 @@ documented.
 | Path        | Component             | Status         |
 |-------------|-----------------------|----------------|
 | `backend/`  | FastAPI API service   | ✅ complete     |
-| `frontend/` | SvelteKit web UI      | 🚧 coming soon  |
+| `frontend/` | SvelteKit web UI      | ✅ complete     |
 | `cli/`      | Python CLI (Typer)    | 🚧 coming soon  |
 | `docs/`     | Project documentation | ✅ live         |
 
-> The `frontend/` and `cli/` directories will land in Phase B. They
-> consume the same API documented here — the backend is API-first and
-> already serves a complete OpenAPI contract, so the frontend and CLI
-> can be built against it independently.
+> The `frontend/` SvelteKit app consumes the same API documented here —
+> the backend is API-first, so the UI was built entirely against its
+> OpenAPI contract. The `cli/` (Typer) lands in Phase B alongside it.
 
 ---
 
@@ -154,7 +155,8 @@ Full route inventory and the uniform error contract:
   slowapi · pytest
 - **Containers** — Docker · Docker Compose · multi-stage build ·
   non-root runtime user
-- **Frontend** *(Phase B)* — SvelteKit · TailwindCSS
+- **Frontend** — SvelteKit (Svelte 5 runes) · TypeScript · TailwindCSS v4 ·
+  adapter-node (server-set httpOnly cookies)
 - **CLI** *(Phase B)* — Typer · httpx
 - **Infra** *(Phase C)* — Kubernetes · Terraform · AWS ·
   Prometheus · Grafana · OpenTelemetry
