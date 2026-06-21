@@ -53,6 +53,17 @@ class Session:
         self._tokens = None
         tokens.delete(self._cfg.credentials_path)
 
+    def logout(self) -> None: 
+        """Revoke session server-side (best-effort) + wipe local.""" 
+        if self._tokens: 
+            try:
+                with self.anonymous_client() as t: 
+                    api_auth.logout(
+                        t, refresh_token=self._tokens.refresh_token
+                    )  
+            except ApiError:
+                pass  # best-effort; local wipe still happens 
+        self.clear()    
     # ---------- transports ----------
 
     def anonymous_client(self) -> Transport:
