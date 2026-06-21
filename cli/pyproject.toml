@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "taskflow-cli"
+version = "0.1.0"
+description = "Command-line client for TaskFlow"
+requires-python = ">=3.10"
+dependencies = [
+    "typer>=0.15.0",
+    "httpx>=0.28.0",
+]
+
+[project.scripts]
+tflowctl = "taskflow_cli.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/taskflow_cli"]
