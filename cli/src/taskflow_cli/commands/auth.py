@@ -1,4 +1,4 @@
-"""Auth commands — login (more land in the next step)."""
+"""Auth commands: login, register, whoami, logout."""
 from __future__ import annotations
 
 import sys
@@ -8,8 +8,9 @@ from rich.console import Console
 
 from taskflow_cli import config
 from taskflow_cli.api import auth as api_auth
+from taskflow_cli.errors import EXIT_AUTH
 from taskflow_cli.session import Session
-from taskflow_cli.errors import EXIT_AUTH, ApiError  
+
 app = typer.Typer(help="Authentication commands.", no_args_is_help=True)
 err = Console(stderr=True)  # all chatter goes here
 
@@ -33,15 +34,12 @@ def login(
 
     cfg = config.load()
     sess = Session(cfg)
-    try:
-        with sess.anonymous_client() as t:
-            body = api_auth.login(t, email=email, password=password)
-    except ApiError as e:
-        err.print(f"[red]error:[/red] {e.message}")
-        raise typer.Exit(code=e.exit_code)
+    with sess.anonymous_client() as t:
+        body = api_auth.login(t, email=email, password=password)
 
     sess.save_tokens(body)
     err.print(f"[green]✓[/green] logged in as {email}")
+
 
 @app.command()
 def register(
@@ -62,12 +60,8 @@ def register(
 
     cfg = config.load()
     sess = Session(cfg)
-    try:
-        with sess.anonymous_client() as t:
-            user = api_auth.register(t, email=email, password=password)
-    except ApiError as e:
-        err.print(f"[red]error:[/red] {e.message}")
-        raise typer.Exit(code=e.exit_code)
+    with sess.anonymous_client() as t:
+        user = api_auth.register(t, email=email, password=password)
 
     err.print(f"[green]✓[/green] created account for {user['email']}")
     err.print("[dim]  next: tflowctl auth login[/dim]")
@@ -82,12 +76,7 @@ def whoami() -> None:
         err.print("[red]error:[/red] not logged in (run `tflowctl auth login`)")
         raise typer.Exit(code=EXIT_AUTH)
 
-    try:
-        user = api_auth.me(sess)  # session has the same shape as Transport
-    except ApiError as e:
-        err.print(f"[red]error:[/red] {e.message}")
-        raise typer.Exit(code=e.exit_code)
-
+    user = api_auth.me(sess)  # session has the same shape as Transport
     print(user["email"])                                # stdout: data
     err.print(f"[dim]  role: {user['role']}[/dim]")     # stderr: chatter
 
