@@ -248,6 +248,94 @@ cli/
         └── auth.py
 ```
 
+## Workspace commands
+
+Workspaces are the top-level container for tasks. Every user can own multiple
+workspaces; every workspace has an owner and zero or more invited members.
+
+### List your workspaces
+
+```sh
+tflowctl workspace list
+```
+
+Outputs a Rich table to stdout. An empty result prints `no workspaces yet` to
+**stderr** (so it doesn't pollute scripts that redirect stdout).
+
+For machine-readable output:
+
+```sh
+tflowctl workspace list --json
+```
+
+Emits a JSON array of `{id, name, owner_id, created_at}` objects — always valid
+JSON, including `[]` when empty.
+
+### Create a workspace
+
+```sh
+tflowctl workspace create "Engineering"
+```
+
+The success line goes to **stderr**; the new workspace UUID goes to **stdout**.
+That separation makes the command scriptable:
+
+```sh
+WS_ID=$(tflowctl workspace create "Engineering")
+echo "captured: $WS_ID"
+```
+
+For the full server response (e.g. `created_at`):
+
+```sh
+tflowctl workspace create "Engineering" --json
+```
+
+## Member commands
+
+> **Note:** only `invite` is implemented today. Listing and removing members
+> are blocked by backend issue
+> [#85](https://github.com/el-amin-dev/taskflow/issues/85). Once that lands,
+> `member list` and `member remove` will follow.
+
+### Invite a user to a workspace
+
+```sh
+tflowctl member invite <WORKSPACE_ID> <EMAIL> --role <ROLE>
+```
+
+`<ROLE>` is one of `admin`, `member` (default), or `viewer`. An invalid role
+exits with code `2` (usage error) before any HTTP request is made — the choice
+is validated at the parser layer.
+
+The invitee must already have a TaskFlow account; there is no email-based
+invite-link flow yet.
+
+Example:
+
+```sh
+tflowctl member invite "$WS_ID" "alice@example.com" --role admin
+```
+
+For machine-readable output:
+
+```sh
+tflowctl member invite "$WS_ID" "alice@example.com" --json
+```
+
+Emits a JSON object of `{user_id, workspace_id, role, joined_at}`. Backend
+issue [#86](https://github.com/el-amin-dev/taskflow/issues/86) tracks adding
+the invitee's email and display name to this response.
+
+### Exit codes specific to membership
+
+| Code | Meaning                                                  |
+|-----:|----------------------------------------------------------|
+| `13` | conflict — user is already a member of that workspace    |
+| `12` | forbidden — you don't have permission to invite          |
+| `11` | not found — no such workspace, or invitee email unknown  |
+| `15` | bad request — malformed UUID, invalid email, or bad role |
+
 Architecture in detail and the PR roadmap live in
 [`work-track.md`](./work-track.md).
 
