@@ -1,6 +1,7 @@
 """Auth commands: login, register, whoami, logout."""
 from __future__ import annotations
 
+import json
 import sys
 
 import typer
@@ -49,6 +50,9 @@ def register(
         "--password-stdin",
         help="Read password from stdin (for scripts).",
     ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Emit the new user as JSON to stdout."
+    ),
 ) -> None:
     """Create a new account. Does not log in — use `auth login` after."""
     if email is None:
@@ -63,12 +67,19 @@ def register(
     with sess.anonymous_client() as t:
         user = api_auth.register(t, email=email, password=password)
 
-    err.print(f"[green]✓[/green] created account for {user['email']}")
-    err.print("[dim]  next: tflowctl auth login[/dim]")
+    if json_output:
+        print(json.dumps(user))
+    else:
+        err.print(f"[green]✓[/green] created account for {user['email']}")
+        err.print("[dim]  next: tflowctl auth login[/dim]")
 
 
 @app.command()
-def whoami() -> None:
+def whoami(
+    json_output: bool = typer.Option(
+        False, "--json", help="Emit user as JSON to stdout."
+    ),
+) -> None:
     """Show the authenticated user."""
     cfg = config.load()
     sess = Session(cfg)
@@ -77,8 +88,11 @@ def whoami() -> None:
         raise typer.Exit(code=EXIT_AUTH)
 
     user = api_auth.me(sess)  # session has the same shape as Transport
-    print(user["email"])                                # stdout: data
-    err.print(f"[dim]  role: {user['role']}[/dim]")     # stderr: chatter
+    if json_output:
+        print(json.dumps(user))
+    else:
+        print(user["email"])                                # stdout: data
+        err.print(f"[dim]  role: {user['role']}[/dim]")     # stderr: chatter
 
 
 @app.command()
