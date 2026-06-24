@@ -336,6 +336,110 @@ the invitee's email and display name to this response.
 | `11` | not found — no such workspace, or invitee email unknown  |
 | `15` | bad request — malformed UUID, invalid email, or bad role |
 
+
+## Task commands
+
+Tasks live inside a workspace. Every task command takes the workspace ID as
+its first positional argument — matching the backend's workspace-scoped routes
+and keeping RBAC at the URL layer.
+
+> **Note:** `task show` is not implemented. The backend has no single-task
+> GET endpoint; tracked as
+> [#105](https://github.com/el-amin-dev/taskflow/issues/105).
+
+### List tasks
+
+```sh
+tflowctl task list <WORKSPACE_ID>
+```
+
+Outputs a Rich table to stdout. Empty result prints `no tasks yet` to
+**stderr**; `--json` emits an empty array.
+
+Filter by status:
+
+```sh
+tflowctl task list <WORKSPACE_ID> --status in_progress
+```
+
+`--assignee` is not yet supported — backend query param tracked as
+[#106](https://github.com/el-amin-dev/taskflow/issues/106).
+
+For machine-readable output:
+
+```sh
+tflowctl task list <WORKSPACE_ID> --json
+```
+
+### Create a task
+
+```sh
+tflowctl task create <WORKSPACE_ID> "Write the runbook"
+```
+
+Confirmation line to **stderr**; new task UUID to **stdout** — same pattern as
+`workspace create`, scriptable via shell substitution.
+
+Full options:
+
+```sh
+tflowctl task create <WORKSPACE_ID> "Refactor auth" \
+    --description "Move JWT decode into a service" \
+    --status in_progress \
+    --assignee <USER_ID> \
+    --deadline 2026-07-01T17:00:00Z
+```
+
+Status defaults to `todo` when omitted. Description, assignee, and deadline
+are all optional.
+
+### Update task metadata
+
+```sh
+tflowctl task update <WORKSPACE_ID> <TASK_ID> --title "New title"
+```
+
+`update` covers metadata only: title, description, assignee, deadline. **It
+does not change status** — that's a separate verb (see below) because state
+transitions are semantically distinct and benefit from their own audit trail.
+
+At least one field flag is required; calling `update` with no fields exits
+with code `2`.
+
+### Change task status
+
+```sh
+tflowctl task status <WORKSPACE_ID> <TASK_ID> in_progress
+```
+
+Status is one of `todo`, `in_progress`, `done`. Invalid values exit with
+code `2` at the parser layer — no HTTP request is made.
+
+This mirrors the `gh issue close` pattern: high-frequency state changes get
+their own command, separate from generic metadata edits.
+
+### Delete a task
+
+```sh
+tflowctl task delete <WORKSPACE_ID> <TASK_ID>
+```
+
+Prompts for confirmation on stderr. For scripts:
+
+```sh
+tflowctl task delete <WORKSPACE_ID> <TASK_ID> --yes
+```
+
+### Exit codes specific to tasks
+
+| Code | Meaning                                                    |
+|-----:|------------------------------------------------------------|
+|  `2` | invalid status value (parser-level), or `update` with no fields |
+| `11` | not found — task ID doesn't exist in this workspace        |
+| `12` | forbidden — you don't have permission to edit this task    |
+| `15` | bad request — invalid UUID, malformed deadline, etc.       |
+
+
 Architecture in detail and the PR roadmap live in
 [`work-track.md`](./work-track.md).
 
