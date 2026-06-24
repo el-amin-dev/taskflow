@@ -13,12 +13,14 @@ from taskflow_cli.commands import auth as auth_cmd
 from taskflow_cli.errors import ApiError
 from taskflow_cli.commands import workspace as workspace_cmd
 from taskflow_cli.commands import member as member_cmd
+from taskflow_cli.commands import task as task_cmd
 
 app = typer.Typer(help="TaskFlow command-line client.")
 
 app.add_typer(auth_cmd.app, name="auth")
 app.add_typer(workspace_cmd.app, name="workspace")
 app.add_typer(member_cmd.app, name="member")
+app.add_typer(task_cmd.app, name="task")
 
 def _version_callback(value: bool) -> None:
     if value:
