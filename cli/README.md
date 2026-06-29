@@ -440,8 +440,121 @@ tflowctl task delete <WORKSPACE_ID> <TASK_ID> --yes
 | `15` | bad request — invalid UUID, malformed deadline, etc.       |
 
 
+
+## Comment commands
+
+Task comments. Every command takes workspace ID, task ID, and (for edit/delete)
+the comment ID as positional arguments — same shape as the rest of the
+workspace-scoped CLI.
+
+Comments are the first surface that uses cursor pagination
+(`CommentPage` from the backend) and the first to accept message bodies via
+three input methods.
+
+> **Author rules:** only the comment's author may `edit` or `delete` it.
+> Non-author attempts return exit code `12` (forbidden) with a clear message.
+> Backend issue
+> [#89](https://github.com/el-amin-dev/taskflow/issues/89) tracks adding
+> author email and name to the response; until then, the table shows the
+> author's user ID (truncated). Comments whose author has been deleted
+> render as `(deleted user)`.
+
+### List comments
+
+```sh
+tflowctl comment list <WORKSPACE_ID> <TASK_ID>
+```
+
+Oldest first. By default shows one page; when more results exist, a hint on
+**stderr** offers the next cursor or `--all`:
+
+```sh
+tflowctl comment list <WS> <TASK> --limit 20
+# … table …
+# more available — re-run with --cursor <token> or --all
+```
+
+Walk every page in one call:
+
+```sh
+tflowctl comment list <WS> <TASK> --all
+```
+
+For scripts:
+
+```sh
+tflowctl comment list <WS> <TASK> --json
+# emits {"items": [...], "next_cursor": "<token>" | null}
+```
+
+### Add a comment
+
+Three ways to supply the body, in priority order:
+
+```sh
+# Inline (fastest)
+tflowctl comment add <WS> <TASK> -m "Quick observation"
+
+# From stdin (for scripts and pipes)
+echo "Body from a heredoc-style pipe" | tflowctl comment add <WS> <TASK> --message-stdin
+
+# Editor fallback (default when neither flag is set)
+tflowctl comment add <WS> <TASK>
+# Opens $EDITOR (or nano, or vi) with a template;
+# lines beginning with '#' are stripped;
+# empty body aborts with exit 2.
+```
+
+Confirmation line goes to **stderr**; the new comment UUID goes to **stdout** —
+same scriptable pattern as `task create`. Capture with shell substitution:
+
+```sh
+CID=$(echo "Body" | tflowctl comment add "$WS" "$TASK" --message-stdin)
+```
+
+Passing both `-m` and `--message-stdin` is a usage error (exit 2). The mutex
+check fires *before* stdin is read, so the command never blocks waiting for
+input that won't be used.
+
+### Edit a comment
+
+```sh
+tflowctl comment edit <WS> <TASK> <COMMENT_ID> -m "Revised body"
+```
+
+Same three input methods as `add`. The PATCH semantics are replacement, not
+partial — the new body fully overwrites the old one (matches the backend
+schema: `CommentCreate` is reused for updates).
+
+Editing a comment you don't own exits with code `12`.
+
+### Delete a comment
+
+```sh
+tflowctl comment delete <WS> <TASK> <COMMENT_ID>
+```
+
+Prompts for confirmation on **stderr**. For non-interactive scripts:
+
+```sh
+tflowctl comment delete <WS> <TASK> <COMMENT_ID> --yes
+```
+
+Deleting a comment you don't own exits with code `12`.
+
+### Exit codes specific to comments
+
+| Code | Meaning                                                              |
+|-----:|----------------------------------------------------------------------|
+|  `2` | `-m` and `--message-stdin` both passed; empty body in editor or pipe |
+| `11` | not found — comment ID doesn't exist on this task                    |
+| `12` | not the comment author — only authors may edit or delete             |
+| `15` | bad request — body too long, malformed UUID, etc.                    |
+
+
 Architecture in detail and the PR roadmap live in
 [`work-track.md`](./work-track.md).
+
 
 ---
 
