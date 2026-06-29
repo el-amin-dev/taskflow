@@ -5,9 +5,10 @@ Built with Typer + httpx. Single-use refresh tokens with file-lock theft
 protection, atomic 0600 credential storage, scriptable exit codes,
 `--json` mode for pipelines.
 
-> **Status** — auth commands (`register`, `login`, `whoami`, `logout`)
-> are live. Workspaces, tasks, comments, activity, and audit ship in
-> subsequent PRs. The map and PR plan: [`work-track.md`](./work-track.md).
+> **Status** — 20 commands across 5 groups (`auth`, `workspace`, `member`,
+> `task`, `comment`) are live, backed by a pytest unit suite covering the
+> deterministic modules. Phase B (CI, container image, deployment) is next.
+> The map and PR plan: [`work-track.md`](./work-track.md).
 
 ---
 
@@ -89,18 +90,23 @@ shell history, or logs.
 
 ## Commands
 
-| Command                    | What it does                                  |
-|----------------------------|-----------------------------------------------|
-| `tflowctl auth register`   | Create a new account. Does not log in.        |
-| `tflowctl auth login`      | Log in and save credentials.                  |
-| `tflowctl auth whoami`     | Show the authenticated user.                  |
-| `tflowctl auth logout`     | Revoke session + wipe local credentials.      |
+| Group | Commands |
+|---|---|
+| **`auth`** | `register` · `login` · `whoami` · `logout` |
+| **`workspace`** | `list` · `create` |
+| **`member`** | `invite` |
+| **`task`** | `list` · `create` · `update` · `status` · `delete` |
+| **`comment`** | `list` · `add` · `edit` · `delete` |
 
 Every command supports `--help`:
 
 ```bash
-tflowctl auth login --help
+tflowctl task status --help
 ```
+
+Each group has its own section below. Scriptable patterns
+(`--json`, stdout/stderr discipline, shell substitution capture) are
+documented under **Scripted use**.
 
 ---
 
@@ -150,6 +156,7 @@ All config is environment-driven and validated at startup (12-factor §III).
 |---------------------|--------------------------|---------------------------------------------|
 | `TASKFLOW_API_URL`  | `http://localhost:8000`  | Backend base URL. Must start with `http(s)://` |
 | `XDG_CONFIG_HOME`   | `~/.config`              | Per XDG spec; tokens live under `$XDG_CONFIG_HOME/tflowctl/` |
+| `EDITOR`            | falls back to `nano`, then `vi` | Used by `comment add` / `comment edit` when neither `-m` nor `--message-stdin` is given |
 
 Invalid config fails fast, before any HTTP call is attempted:
 
@@ -169,10 +176,10 @@ is documented and stable. Scripts can branch on it.
 |------|----------------------|-------------------------------------------------------------------------|
 | `0`  | success              | normal completion                                                       |
 | `1`  | generic error        | uncaught fallback                                                       |
-| `2`  | usage error          | bad argv — missing required arg, unknown command                        |
+| `2`  | usage error          | bad argv — missing required arg, unknown command, invalid enum value    |
 | `10` | auth failed          | wrong password, invalid/expired token, session expired                  |
 | `11` | not found            | resource doesn't exist *or* not yours (non-disclosure: same response)   |
-| `12` | forbidden            | edit/delete by someone without the right                                |
+| `12` | forbidden            | edit/delete by someone without the right (incl. comment author rule)    |
 | `13` | conflict             | email already registered, already a member, can't remove owner          |
 | `14` | network / transport  | DNS, connection refused, timeout, TLS                                   |
 | `15` | bad request          | invalid cursor, 422 validation failure                                  |
@@ -221,7 +228,7 @@ Mirrors the backend's discipline; full detail in
 cd cli
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e ".[dev]"
 
 # Run against your local backend:
 docker compose -f ../docker-compose.yaml up -d
@@ -235,6 +242,13 @@ cli/
 ├── pyproject.toml
 ├── work-track.md           # PR plan + mermaid diagrams
 ├── README.md               # this file
+├── tests/
+│   └── unit/
+│       ├── test_errors.py
+│       ├── test_tokens.py
+│       ├── test_editor.py
+│       ├── test_transport.py
+│       └── test_session.py
 └── src/taskflow_cli/
     ├── main.py             # Typer entrypoint + central error handler
     ├── config.py           # env-driven, XDG, fail-fast
@@ -243,9 +257,19 @@ cli/
     ├── transport.py        # httpx + error-envelope unwrap
     ├── session.py          # refresh-on-401 + lock orchestration
     ├── api/                # one module per resource
-    │   └── auth.py
-    └── commands/           # Typer subcommand modules
-        └── auth.py
+    │   ├── auth.py
+    │   ├── workspaces.py
+    │   ├── members.py
+    │   ├── tasks.py
+    │   └── comments.py
+    ├── commands/           # Typer subcommand modules
+    │   ├── auth.py
+    │   ├── workspace.py
+    │   ├── member.py
+    │   ├── task.py
+    │   └── comment.py
+    └── util/
+        └── editor.py       # message-body composer (-m / stdin / EDITOR)
 ```
 
 ## Workspace commands
@@ -293,10 +317,11 @@ tflowctl workspace create "Engineering" --json
 
 ## Member commands
 
-> **Note:** only `invite` is implemented today. Listing and removing members
-> are blocked by backend issue
-> [#85](https://github.com/el-amin-dev/taskflow/issues/85). Once that lands,
-> `member list` and `member remove` will follow.
+> **Note:** only `invite` is implemented today. Backend issue
+> [#85](https://github.com/el-amin-dev/taskflow/issues/85) blocks
+> `member list` (no GET-members endpoint yet); `member remove` is
+> deferred to a dedicated workspace-membership PR since the DELETE
+> endpoint already exists backend-side.
 
 ### Invite a user to a workspace
 
@@ -440,7 +465,6 @@ tflowctl task delete <WORKSPACE_ID> <TASK_ID> --yes
 | `15` | bad request — invalid UUID, malformed deadline, etc.       |
 
 
-
 ## Comment commands
 
 Task comments. Every command takes workspace ID, task ID, and (for edit/delete)
@@ -550,6 +574,59 @@ Deleting a comment you don't own exits with code `12`.
 | `11` | not found — comment ID doesn't exist on this task                    |
 | `12` | not the comment author — only authors may edit or delete             |
 | `15` | bad request — body too long, malformed UUID, etc.                    |
+
+
+## Testing
+
+The CLI has a pytest unit test suite covering the deterministic modules
+(errors, tokens, editor body composer, transport response parsing, session
+orchestration). No network, no real backend, no filesystem outside `tmp_path`.
+
+### Run the tests
+
+```sh
+# One-time: install dev dependencies (adds pytest to your venv)
+pip install -e ".[dev]"
+
+# Run
+pytest
+```
+
+Output ends with `N passed in <1s` — the whole suite runs in well under a
+second because nothing touches I/O.
+
+### What's covered
+
+| Module | Focus |
+|---|---|
+| `errors.py` | `CODE_TO_EXCEPTION` mapping; each exception class carries its documented exit code |
+| `tokens.py` | Atomic 0600 file write, expiry math with skew, refresh-lock semantics |
+| `util/editor.py` | The three input paths (`-m` / stdin / EDITOR), mutex check fires before stdin read, comment-line stripping, EDITOR fallback chain |
+| `transport.py` | Error envelope unwrap by backend code, FastAPI 422 shape, 5xx → `ServerError`, `httpx.RequestError` → `NetworkError` |
+| `session.py` | Proactive refresh on expired token, reactive refresh on `InvalidToken`, failed refresh wipes credentials, concurrent-refresh detection via re-read |
+
+### What's deliberately deferred
+
+| Surface | Why deferred |
+|---|---|
+| `api/*.py` | Thin HTTP wrappers around `Transport` — testing them duplicates `transport.py` coverage |
+| `commands/*.py` | Typer's `CliRunner` pairs naturally with end-to-end tests against a live backend |
+| End-to-end flows (register → login → task → comment) | Needs Postgres and test-mode cleanup; lives in a future integration test PR |
+
+### Stack notes
+
+- **pytest** only — no `respx`, `pytest-httpx`, or coverage tooling. The
+  stdlib `unittest.mock` is verbose but explicit; anyone reading the tests
+  can follow what's being patched without learning a third-party DSL.
+- **`filterwarnings = ["error"]`** in `pyproject.toml` — any
+  DeprecationWarning during a test fails the run. Catches Python-version
+  drift before it ships.
+- **`--strict-markers`** — typo'd `@pytest.mark.unti` would normally silently
+  skip; with this it fails loudly.
+
+The next step in this Testing track is a GitHub Actions workflow that runs
+`pytest` on every push and PR — see the Phase B plan in
+[`work-track.md`](./work-track.md).
 
 
 Architecture in detail and the PR roadmap live in
