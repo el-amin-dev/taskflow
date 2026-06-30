@@ -11,9 +11,9 @@ import json
 import os
 import tempfile
 import time
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterator
 
 
 @dataclass(frozen=True)
@@ -26,7 +26,7 @@ class Tokens:
     expires_at: int
 
     @classmethod
-    def from_response(cls, body: dict, now: int | None = None) -> "Tokens":
+    def from_response(cls, body: dict, now: int | None = None) -> Tokens:
         """Build from /login or /refresh response. expires_in -> expires_at."""
         clock = now if now is not None else int(time.time())
         return cls(

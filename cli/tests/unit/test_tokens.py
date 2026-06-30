@@ -21,7 +21,6 @@ import pytest
 from taskflow_cli import tokens
 from taskflow_cli.tokens import Tokens
 
-
 # --- Tokens.from_response ---------------------------------------------------
 
 def test_from_response_computes_absolute_expiry():

@@ -36,7 +36,7 @@ class Transport:
             headers["Authorization"] = f"Bearer {access_token}"
         self._client = httpx.Client(base_url=base_url, headers=headers, timeout=timeout)
 
-    def __enter__(self) -> "Transport":
+    def __enter__(self) -> Transport:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -89,8 +89,7 @@ class Transport:
         try:
             body = resp.json()
         except ValueError:
-            raise ApiError(resp.text or f"http {status}", http_status=status)
-
+            raise ApiError(resp.text or f"http {status}", http_status=status) from None
         if status == 422:
             # FastAPI shape: {"detail": [{"loc": [...], "msg": "...", "type": "..."}]}
             detail = body.get("detail", []) if isinstance(body, dict) else []

@@ -8,7 +8,6 @@ Each exception knows its own exit code per the documented scheme.
 """
 from __future__ import annotations
 
-
 # Exit codes — the scriptable contract. Documented in the CLI README.
 EXIT_OK = 0
 EXIT_GENERIC = 1

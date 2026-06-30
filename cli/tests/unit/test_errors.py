@@ -10,7 +10,6 @@ import pytest
 
 from taskflow_cli import errors
 
-
 # --- Exit code constants ---------------------------------------------------
 
 @pytest.mark.parametrize(
