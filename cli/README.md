@@ -623,6 +623,48 @@ second because nothing touches I/O.
   drift before it ships.
 - **`--strict-markers`** — typo'd `@pytest.mark.unti` would normally silently
   skip; with this it fails loudly.
+### Lint
+
+Ruff handles linting and import sorting. Configured for `E`/`F`/`I`/`B`/`UP`
+rule families — pycodestyle errors, pyflakes, isort, bugbear's bug patterns,
+and pyupgrade hints. Cosmetic-only rules are deliberately off.
+
+```sh
+# Check
+ruff check src tests
+
+# Auto-fix what's safely fixable
+ruff check src tests --fix
+```
+
+Per-file ignores live in `pyproject.toml`:
+- `tests/**` allows assertions used in test scaffolding (`B011`)
+- `src/taskflow_cli/commands/**` permits Typer's `Argument(...)` and
+  `Option(...)` as default values (`B008`) — the documented framework
+  pattern, not a real bug
+
+### Type-check
+
+Mypy enforces the type hints already in the source. Configured strict-ish:
+`warn_return_any`, `warn_unreachable`, `warn_unused_ignores`,
+`no_implicit_optional`. Not full `strict` mode — that produces noise on
+small codebases without catching proportionally more bugs.
+
+```sh
+mypy src
+```
+
+Two module overrides in `pyproject.toml`:
+- `tests.*` — `ignore_errors = true`. Mocks, monkeypatch, and fixture
+  return types defeat strict typing without surfacing real bugs.
+- `taskflow_cli.api.*` — `warn_return_any = false`. The api layer is the
+  type boundary between the `Any`-typed JSON returned by `httpx.json()`
+  and our named shapes. Asking mypy to prove what JSON can't prove is
+  the wrong question of the wrong layer.
+
+A `Client` protocol in `transport.py` makes the duck-typed shape that
+both `Transport` and `Session` implement explicit — `api/*` functions
+accept `Client`, callers pass either.
 
 The next step in this Testing track is a GitHub Actions workflow that runs
 `pytest` on every push and PR — see the Phase B plan in
