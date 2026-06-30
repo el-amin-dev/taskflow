@@ -24,10 +24,14 @@ def create(
     deadline: str | None = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {"title": title}
-    if description is not None: body["description"] = description
-    if status is not None:      body["status"] = status
-    if assignee_id is not None: body["assignee_id"] = assignee_id
-    if deadline is not None:    body["deadline"] = deadline
+    if description is not None:
+        body["description"] = description
+    if status is not None:
+        body["status"] = status
+    if assignee_id is not None:
+        body["assignee_id"] = assignee_id
+    if deadline is not None:
+        body["deadline"] = deadline
     return client.post(f"/v1/workspaces/{workspace_id}/tasks", json=body)
 
 
@@ -43,11 +47,16 @@ def update(
     deadline: str | None = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {}
-    if title is not None:       body["title"] = title
-    if description is not None: body["description"] = description
-    if status is not None:      body["status"] = status
-    if assignee_id is not None: body["assignee_id"] = assignee_id
-    if deadline is not None:    body["deadline"] = deadline
+    if title is not None:
+        body["title"] = title
+    if description is not None:
+        body["description"] = description
+    if status is not None:
+        body["status"] = status
+    if assignee_id is not None:
+        body["assignee_id"] = assignee_id
+    if deadline is not None:
+        body["deadline"] = deadline
     return client.patch(f"/v1/workspaces/{workspace_id}/tasks/{task_id}", json=body)
 
 

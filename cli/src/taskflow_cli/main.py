@@ -5,16 +5,16 @@ import sys
 
 import click
 import typer
-from typer._click import exceptions as _typer_exc
 from rich.console import Console
+from typer._click import exceptions as _typer_exc
 
 from taskflow_cli import __version__
 from taskflow_cli.commands import auth as auth_cmd
-from taskflow_cli.errors import ApiError
-from taskflow_cli.commands import workspace as workspace_cmd
+from taskflow_cli.commands import comment as comment_cmd
 from taskflow_cli.commands import member as member_cmd
 from taskflow_cli.commands import task as task_cmd
-from taskflow_cli.commands import comment as comment_cmd
+from taskflow_cli.commands import workspace as workspace_cmd
+from taskflow_cli.errors import ApiError
 
 app = typer.Typer(help="TaskFlow command-line client.")
 

@@ -6,7 +6,7 @@ layer composes this with tokens.py for the refresh dance.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 
 import httpx
 
@@ -20,6 +20,11 @@ from taskflow_cli.errors import (
 
 DEFAULT_TIMEOUT = 30.0
 
+class Client(Protocol):
+    def get(self, path: str, *, params: dict | None = ...) -> Any: ...
+    def post(self, path: str, *, json: Any = ...) -> Any: ... 
+    def patch(self, path: str, *, json: Any = ...) -> Any: ...
+    def delete(self, path: str) -> Any: ...
 
 class Transport:
     """Thin httpx wrapper. Use as a context manager."""
@@ -36,7 +41,7 @@ class Transport:
             headers["Authorization"] = f"Bearer {access_token}"
         self._client = httpx.Client(base_url=base_url, headers=headers, timeout=timeout)
 
-    def __enter__(self) -> "Transport":
+    def __enter__(self) -> Transport:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -89,8 +94,7 @@ class Transport:
         try:
             body = resp.json()
         except ValueError:
-            raise ApiError(resp.text or f"http {status}", http_status=status)
-
+            raise ApiError(resp.text or f"http {status}", http_status=status) from None
         if status == 422:
             # FastAPI shape: {"detail": [{"loc": [...], "msg": "...", "type": "..."}]}
             detail = body.get("detail", []) if isinstance(body, dict) else []

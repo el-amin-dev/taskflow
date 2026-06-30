@@ -12,7 +12,6 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 
-from taskflow_cli import transport as transport_mod
 from taskflow_cli.errors import (
     ApiError,
     InvalidCredentials,
@@ -22,7 +21,6 @@ from taskflow_cli.errors import (
     ValidationError,
 )
 from taskflow_cli.transport import Transport
-
 
 # --- helpers ---------------------------------------------------------------
 

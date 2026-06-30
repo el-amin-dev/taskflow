@@ -9,7 +9,7 @@ Mocking strategy:
 from __future__ import annotations
 
 from contextlib import contextmanager
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -17,7 +17,6 @@ from taskflow_cli import session as session_mod
 from taskflow_cli.errors import InvalidToken
 from taskflow_cli.session import Session, SessionExpired
 from taskflow_cli.tokens import Tokens
-
 
 # --- fixtures -------------------------------------------------------------
 

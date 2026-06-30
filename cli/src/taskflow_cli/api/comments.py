@@ -19,8 +19,10 @@ def list_page(
 ) -> dict[str, Any]:
     """One page. Returns {'items': [...], 'next_cursor': str | None}."""
     params: dict[str, Any] = {}
-    if cursor is not None: params["cursor"] = cursor
-    if limit is not None:  params["limit"] = limit
+    if cursor is not None:
+        params["cursor"] = cursor
+    if limit is not None:
+        params["limit"] = limit
     return client.get(
         f"/v1/workspaces/{workspace_id}/tasks/{task_id}/comments",
         params=params or None,

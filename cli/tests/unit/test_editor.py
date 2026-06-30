@@ -17,7 +17,6 @@ import typer
 
 from taskflow_cli.util import editor
 
-
 # --- mutex check ----------------------------------------------------------
 
 def test_message_and_stdin_together_is_usage_error():
