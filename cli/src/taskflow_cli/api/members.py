@@ -3,11 +3,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from taskflow_cli.transport import Transport
+from taskflow_cli.transport import Client
 
 
 def invite(
-    client: Transport,
+    client: Client,
     workspace_id: str,
     *,
     email: str,

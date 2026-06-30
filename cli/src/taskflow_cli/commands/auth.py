@@ -18,7 +18,7 @@ err = Console(stderr=True)  # all chatter goes here
 
 @app.command()
 def login(
-    email: str = typer.Option(None, "--email", "-e", help="Your email address."),
+    email: str | None = typer.Option(None, "--email", "-e", help="Your email address."),
     password_stdin: bool = typer.Option(
         False,
         "--password-stdin",
@@ -44,7 +44,7 @@ def login(
 
 @app.command()
 def register(
-    email: str = typer.Option(None, "--email", "-e", help="Email for the new account."),
+    email: str | None = typer.Option(None, "--email", "-e", help="Email for the new account."),
     password_stdin: bool = typer.Option(
         False,
         "--password-stdin",

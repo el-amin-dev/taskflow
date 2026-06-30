@@ -6,7 +6,7 @@ layer composes this with tokens.py for the refresh dance.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 
 import httpx
 
@@ -20,6 +20,11 @@ from taskflow_cli.errors import (
 
 DEFAULT_TIMEOUT = 30.0
 
+class Client(Protocol):
+    def get(self, path: str, *, params: dict | None = ...) -> Any: ...
+    def post(self, path: str, *, json: Any = ...) -> Any: ... 
+    def patch(self, path: str, *, json: Any = ...) -> Any: ...
+    def delete(self, path: str) -> Any: ...
 
 class Transport:
     """Thin httpx wrapper. Use as a context manager."""
