@@ -1,5 +1,7 @@
 # TaskFlow CLI
 
+[![cli](https://github.com/el-amin-dev/taskflow/actions/workflows/cli.yml/badge.svg)](https://github.com/el-amin-dev/taskflow/actions/workflows/cli.yml)
+
 Command-line client for [TaskFlow](https://github.com/el-amin-dev/taskflow).
 Built with Typer + httpx. Single-use refresh tokens with file-lock theft
 protection, atomic 0600 credential storage, scriptable exit codes,
